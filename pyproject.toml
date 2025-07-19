@@ -1,0 +1,38 @@
+[project]
+name = "orcaset"
+version = "0.1.1"
+description = "Open financial modeling"
+readme = "README.md"
+license = "SSPL-1.0"
+license-files = ["LICEN[CS]E*"]
+requires-python = ">=3.13"
+dependencies = [
+    "mypy>=1.17.0",
+    "python-dateutil>=2.8.2",
+]
+
+[project.urls]
+homepage = "https://github.com/Orcaset/orcaset"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[dependency-groups]
+dev = [
+    "mypy>=1.15.0",
+    "pytest>=8.3.5",
+    "types-python-dateutil>=2.9.0.20241206",
+]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+
+[tool.pyright]
+pythonVersion = '3.13'
+
+[tool.mypy]
+python_version = '3.13'
+
+[tool.ruff]
+line-length = 120

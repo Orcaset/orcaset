@@ -1,0 +1,8 @@
+[tool.pyright]
+extraPaths = ['../..']
+pythonVersion = '3.13'
+reportUnnecessaryTypeIgnoreComment = true
+
+[tool.mypy]
+python_version = '3.13'
+warn_unused_ignores = true
