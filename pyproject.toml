@@ -1,11 +1,11 @@
 [project]
 name = "orcaset"
-version = "0.1.1"
-description = "Open financial modeling"
+version = "0.1.2"
+description = "Open financial modeling toolkit"
 readme = "README.md"
 license = "SSPL-1.0"
 license-files = ["LICEN[CS]E*"]
-requires-python = ">=3.13"
+requires-python = ">=3.12"
 dependencies = [
     "mypy>=1.17.0",
     "python-dateutil>=2.8.2",
@@ -29,10 +29,10 @@ dev = [
 pythonpath = ["."]
 
 [tool.pyright]
-pythonVersion = '3.13'
+pythonVersion = '3.12'
 
 [tool.mypy]
-python_version = '3.13'
+python_version = '3.12'
 
 [tool.ruff]
 line-length = 120

@@ -196,9 +196,6 @@ class AccrualSeriesBase[P](Node[P], ABC):
         return total_value / total_weight if total_weight != 0 else 0.0
 
 
-P = TypeVar("P", default=None)
-
-
 @dataclass
 class AccrualSeries[A: Iterable[Accrual], P](AccrualSeriesBase[P]):
     """

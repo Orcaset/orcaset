@@ -21,12 +21,12 @@ class Parent[P: None](Node[P]):
         self.item_child = item_child
 
 
-class Child[P: Parent = Parent](Node[P]):
+class Child[P: Parent](Node[P]):
     def __init__(self, value: int):
         self.value = value
 
 
-p = Parent(item_child=Child(1))
+p = Parent(item_child=Child[Parent](1))
 
 
 # Incorrect parent type
@@ -35,12 +35,12 @@ class IncorrectParent[P: None](Node[P]):
         self.item_b = item_b
 
 
-class AnyNodeParent[P: None = None](Node[P]):
+class AnyNodeParent[P: None](Node[P]):
     def __init__(self, item_child: "Node[Self]"):
         self.item_child = item_child
 
 
-AnyNodeParent(item_child=Child(1))  # type: ignore[arg-type]
+AnyNodeParent[None](item_child=Child[AnyNodeParent](1))  # type: ignore[arg-type]
 
 # Incorrect child type
 p = Parent(item_child="not a child node")  # type: ignore[arg-type]
@@ -51,7 +51,7 @@ class SubParent[P: None](Parent[P]):
     pass
 
 
-sp = SubParent(item_child=Child(1))
+sp = SubParent(item_child=Child[SubParent](1))
 
 
 # Covariant child type

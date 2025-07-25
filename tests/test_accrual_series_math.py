@@ -8,7 +8,7 @@ from dateutil.relativedelta import relativedelta
 from orcaset.financial import Accrual, AccrualSeriesBase, Period
 
 
-class InfiniteGrowth[P = None](AccrualSeriesBase[P]):
+class InfiniteGrowth[P](AccrualSeriesBase[P]):
     def _accruals(self) -> Iterable[Accrual]:
         period = Period(date(2020, 12, 31), date(2021, 12, 31))
         value = 0
@@ -19,7 +19,7 @@ class InfiniteGrowth[P = None](AccrualSeriesBase[P]):
 
 @pytest.fixture
 def infinite_series():
-    return InfiniteGrowth()
+    return InfiniteGrowth[None]()
 
 
 def test_accrual_series_neg(infinite_series):

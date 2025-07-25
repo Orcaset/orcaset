@@ -4,7 +4,7 @@ from typing import Any
 from .decorators import NODE_CACHENAME
 
 
-class Node[P = None]:
+class Node[P]:
     _parent: P
     """
     Base class for nodes. Generic with respect to its parent type.
