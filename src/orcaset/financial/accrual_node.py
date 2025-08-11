@@ -70,6 +70,7 @@ class AccrualSeriesBase[P](Node[P], ABC):
 
         Returns a new `AccrualSeries`.
         """
+        raise DeprecationWarning("Removing rebase to avoid circularity issues.")
         # Get the combined set of unique periods using merged_periods
         unified_periods = merged_periods((a.period for a in iter(self)), iter(periods))
 
@@ -111,7 +112,18 @@ class AccrualSeriesBase[P](Node[P], ABC):
 
     def after(self, dt: date) -> "AccrualSeries":
         """Get a new `AccrualSeries` containing accruals after the given date. Interpolates a partial accrual starting at `dt`."""
-        return AccrualSeries(accrual_series=(a for a in self.rebase([Period(dt, dt)]) if a.period.start >= dt))
+        # return AccrualSeries(accrual_series=(a for a in self.rebase([Period(dt, dt)]) if a.period.start >= dt))
+        def split_series(series: AccrualSeriesBase) -> Iterator[Accrual]:
+            for accrual in series:
+                if accrual.period.end <= dt:
+                    continue
+                if accrual.period.start < dt < accrual.period.end:
+                    _, second = accrual.split_at(dt)
+                    yield second
+                else:
+                    yield accrual
+
+        return AccrualSeries(accrual_series=split_series(self))
 
     def override_accruals(self, accruals: Iterable[Accrual]) -> "AccrualSeries":
         """
@@ -241,20 +253,69 @@ class _AddAccrualSeries:
         yield from self._accruals()
 
     def _accruals(self) -> Iterable[Accrual]:
-        periods = merged_periods(
-            (a.period for a in iter(self.first_series)),
-            (a.period for a in iter(self.second_series)),
-        )
+        # periods = merged_periods(
+        #     (a.period for a in iter(self.first_series)),
+        #     (a.period for a in iter(self.second_series)),
+        # )
 
-        # create independent iterators for the periods
-        periods, first_periods, second_periods = tee(periods, 3)
+        # # create independent iterators for the periods
+        # periods, first_periods, second_periods = tee(periods, 3)
 
-        rebased_first = self.first_series.rebase(first_periods)
-        rebased_second = _rebase_accruals(self.second_series, second_periods)
+        # rebased_first = self.first_series.rebase(first_periods)
+        # rebased_second = _rebase_accruals(self.second_series, second_periods)
 
-        new_accruals = (
-            Accrual(p, first_accrual.value + second_accrual.value, first_accrual.yf)
-            for p, first_accrual, second_accrual in zip(periods, rebased_first, rebased_second)
-        )
+        # new_accruals = (
+        #     Accrual(p, first_accrual.value + second_accrual.value, first_accrual.yf)
+        #     for p, first_accrual, second_accrual in zip(periods, rebased_first, rebased_second)
+        # )
 
-        yield from new_accruals
+        # yield from new_accruals
+        first_iter = iter(self.first_series)
+        second_iter = iter(self.second_series)
+
+        first_accrual = next(first_iter, None)
+        second_accrual = next(second_iter, None)
+
+        while first_accrual is not None or second_accrual is not None:
+            # First accrual is exhausted, yield from second
+            if first_accrual is None:
+                yield second_accrual  # type: ignore
+                second_accrual = next(second_iter, None)
+            # Second accrual is exhausted, yield from first
+            elif second_accrual is None:
+                yield first_accrual
+                first_accrual = next(first_iter, None)
+            # First accrual ends before second starts, yield first
+            elif first_accrual.period.end <= second_accrual.period.start:
+                yield first_accrual
+                first_accrual = next(first_iter, None)
+            # Second accrual ends before first starts, yield second
+            elif second_accrual.period.end <= first_accrual.period.start:
+                yield second_accrual
+                second_accrual = next(second_iter, None)
+            # First accrual starts before second (and must end after second starts)
+            elif first_accrual.period.start < second_accrual.period.start:
+                first_part, first_accrual = first_accrual.split_at(second_accrual.period.start)
+                yield first_part
+            # Second accrual starts before first (and must end after first starts)
+            elif second_accrual.period.start < first_accrual.period.start:
+                second_part, second_accrual = second_accrual.split_at(first_accrual.period.start)
+                yield second_part
+            # If this stage is reached, both accruals start at the same time
+            # First accrual ends before second
+            elif first_accrual.period.end < second_accrual.period.end:
+                second_part, second_accrual = second_accrual.split_at(first_accrual.period.end)
+                yield Accrual(first_accrual.period, first_accrual.value + second_part.value, first_accrual.yf)
+                first_accrual = next(first_iter, None)
+            # Second accrual ends before first
+            elif second_accrual.period.end < first_accrual.period.end:
+                first_part, first_accrual = first_accrual.split_at(second_accrual.period.end)
+                yield Accrual(second_accrual.period, second_accrual.value + first_part.value, second_accrual.yf)
+                second_accrual = next(second_iter, None)
+            # Both end at the same time
+            else:
+                yield Accrual(first_accrual.period, first_accrual.value + second_accrual.value, first_accrual.yf)
+                first_accrual = next(first_iter, None)
+                second_accrual = next(second_iter, None)
+
+

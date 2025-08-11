@@ -86,10 +86,37 @@ class PaymentSeriesBase[P](Node[P], ABC):
         if not isinstance(other, PaymentSeriesBase):
             raise TypeError(f"Cannot add {type(other)} to {type(self)}")
 
-        iter_pmts = heapq.merge(iter(self), iter(other), key=lambda pmt: pmt.date)
-        grouped = groupby(iter_pmts, key=lambda pmt: pmt.date)
-        pmts = (Payment(date=dt, value=sum(pmt.value for pmt in pmts)) for dt, pmts in grouped)
-        return PaymentSeries(payment_series=pmts)
+        # iter_pmts = heapq.merge(iter(self), iter(other), key=lambda pmt: pmt.date)
+        # grouped = groupby(iter_pmts, key=lambda pmt: pmt.date)
+        # pmts = (Payment(date=dt, value=sum(pmt.value for pmt in pmts)) for dt, pmts in grouped)
+        # return PaymentSeries(payment_series=pmts)
+
+        def summed_payments(first, second) -> Iterable[Payment]:
+            first = iter(first)
+            second = iter(second)
+
+            first_pmt = next(first, None)
+            second_pmt = next(second, None)
+            while first_pmt is not None or second_pmt is not None:
+                if first_pmt is None:
+                    yield second_pmt  # type: ignore
+                    second_pmt = next(second, None)
+                elif second_pmt is None:
+                    yield first_pmt
+                    first_pmt = next(first, None)
+                elif first_pmt.date < second_pmt.date:
+                    yield first_pmt
+                    first_pmt = next(first, None)
+                elif first_pmt.date > second_pmt.date:
+                    yield second_pmt
+                    second_pmt = next(second, None)
+                else:
+                    yield Payment(date=first_pmt.date, value=first_pmt.value + second_pmt.value)
+                    first_pmt = next(first, None)
+                    second_pmt = next(second, None)
+
+        return PaymentSeries(payment_series=summed_payments(self, other))
+
 
     def __radd__(self, other: "PaymentSeriesBase"):
         return self.__add__(other)
