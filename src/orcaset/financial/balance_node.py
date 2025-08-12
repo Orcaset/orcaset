@@ -1,15 +1,32 @@
+import datetime
 from abc import ABC, abstractmethod
-from dataclasses import dataclass
-from datetime import date
-from typing import Iterable, Iterator
+from dataclasses import dataclass, field
+from typing import Callable, Iterable, Iterator
 
 from orcaset import Node, cached_generator, merge_distinct
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(slots=True)
 class Balance:
-    date: date
-    value: float
+    date: datetime.date
+    _f: Callable[[], float] = field(repr=False)
+    _value: float = None  # type: ignore
+
+    def __init__(self, date: datetime.date, value: float | Callable[[], float]):
+        object.__setattr__(self, "date", date)
+        if isinstance(value, (float, int)):
+            object.__setattr__(self, "_f", lambda: value)
+            object.__setattr__(self, "_value", value)
+        else:
+            object.__setattr__(self, "_f", value)
+
+    @property
+    def value(self) -> float:
+        value = getattr(self, "_value", None)
+        if value is None:
+            value = self._f()
+            setattr(self, "_value", value)
+        return value
 
     def __add__(self, other: float | int):
         if isinstance(other, (float, int)):
@@ -55,7 +72,7 @@ class BalanceSeriesBase[P](Node[P], ABC):
     def __iter__(self) -> Iterator[Balance]:
         yield from self._balances()
 
-    def at(self, dt: date) -> float:
+    def at(self, dt: datetime.date) -> float:
         """Get the balance at a given date. Returns zero balance if date is outside the range of the series."""
         last_balance = 0.0
         for bal in self:
@@ -66,28 +83,23 @@ class BalanceSeriesBase[P](Node[P], ABC):
             last_balance = bal.value
         return last_balance
 
-    def rebase(self, dates: Iterable[date]) -> Iterable[Balance]:
+    def rebase(self, dates: Iterable[datetime.date]) -> Iterable[Balance]:
         """
         Rebase the balance series to include balances on dates in `dates`.
 
         Pads with zero balances if `dates` extends outside the range of `self._balances`.
         """
-        # raise DeprecationWarning("Removing rebase to avoid circularity issues.")
         distinct_dates = merge_distinct((p.date for p in self), dates)
         balances = (Balance(date=dt, value=self.at(dt)) for dt in distinct_dates)
         return BalanceSeries(balance_series=balances)
 
-    def after(self, dt: date) -> "BalanceSeries":
+    def after(self, dt: datetime.date) -> "BalanceSeries":
         """Return a new `BalanceSeries` from and including `dt`. Interpolates the balance at `dt` if it does not exist."""
         return BalanceSeries(balance_series=(bal for bal in self if bal.date > dt))
 
     def __add__(self, other: "BalanceSeriesBase") -> "BalanceSeries":
         if not isinstance(other, BalanceSeriesBase):
             raise TypeError(f"Cannot add {type(other)} to {type(self)}")
-
-        # distinct_dts = merge_distinct((bal.date for bal in self), (bal.date for bal in other))
-        # summed_balances = (Balance(date=dt, value=self.at(dt) + other.at(dt)) for dt in distinct_dts)
-        # return BalanceSeries(balance_series=summed_balances)
 
         def create_merged_balances(iter_first, iter_second) -> Iterable[Balance]:
             next_first = next(iter_first, None)
@@ -107,11 +119,15 @@ class BalanceSeriesBase[P](Node[P], ABC):
                     next_first = next(iter_first, None)
                 # Both iterators have values, compare dates
                 elif next_first.date < next_second.date:
-                    yield Balance(date=next_first.date, value=next_first.value + last_second.value if last_second else 0)
+                    yield Balance(
+                        date=next_first.date, value=next_first.value + last_second.value if last_second else 0
+                    )
                     last_first = next_first
                     next_first = next(iter_first, None)
                 elif next_first.date > next_second.date:
-                    yield Balance(date=next_second.date, value=next_second.value + last_first.value if last_first else 0)
+                    yield Balance(
+                        date=next_second.date, value=next_second.value + last_first.value if last_first else 0
+                    )
                     last_second = next_second
                     next_second = next(iter_second, None)
                 else:  # Dates are equal, sum values
@@ -122,7 +138,6 @@ class BalanceSeriesBase[P](Node[P], ABC):
                     next_second = next(iter_second, None)
 
         return BalanceSeries(balance_series=create_merged_balances(iter(self), iter(other)))
-
 
     def __neg__(self) -> "BalanceSeries":
         """Return a new BalanceSeries that negates the balances of `self`"""

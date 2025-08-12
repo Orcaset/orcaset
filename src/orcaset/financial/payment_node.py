@@ -1,17 +1,33 @@
-import heapq
+import datetime
 from abc import ABC, abstractmethod
-from dataclasses import dataclass
-from datetime import date
-from itertools import groupby, takewhile
-from typing import Iterable, Iterator
+from dataclasses import dataclass, field
+from itertools import takewhile
+from typing import Callable, Iterable, Iterator
 
 from orcaset import Node, cached_generator
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(slots=True)
 class Payment:
-    date: date
-    value: float
+    date: datetime.date
+    _f: Callable[[], float] = field(repr=False)
+    _value: float = None  # type: ignore
+
+    def __init__(self, date: datetime.date, value: float | Callable[[], float]):
+        object.__setattr__(self, "date", date)
+        if isinstance(value, (float, int)):
+            object.__setattr__(self, "_f", lambda: value)
+            object.__setattr__(self, "_value", value)
+        else:
+            object.__setattr__(self, "_f", value)
+
+    @property
+    def value(self) -> float:
+        value = getattr(self, "_value", None)
+        if value is None:
+            value = self._f()
+            setattr(self, "_value", value)
+        return value
 
     def __add__(self, other: float | int):
         if isinstance(other, (float, int)):
@@ -57,7 +73,7 @@ class PaymentSeriesBase[P](Node[P], ABC):
     def __iter__(self) -> Iterator[Payment]:
         yield from self._payments()
 
-    def on(self, dt: date) -> float:
+    def on(self, dt: datetime.date) -> float:
         """
         Get the payment at a given date. Returns zero if no payment on the given date.
         """
@@ -67,7 +83,7 @@ class PaymentSeriesBase[P](Node[P], ABC):
         else:
             return pmt.value
 
-    def over(self, from_date: date, to_date: date) -> float:
+    def over(self, from_date: datetime.date, to_date: datetime.date) -> float:
         """
         Get the total payment from and excluding `from_date` to and including `to_date`.
         Returns zero if no payments are made in the period.
@@ -78,18 +94,13 @@ class PaymentSeriesBase[P](Node[P], ABC):
                 total += pmt.value
         return total
 
-    def after(self, dt: date) -> "PaymentSeries":
+    def after(self, dt: datetime.date) -> "PaymentSeries":
         """Get a new `PaymentSeries` containing payments after the given date."""
         return PaymentSeries(payment_series=(pmt for pmt in self if pmt.date > dt))
 
     def __add__(self, other: "PaymentSeriesBase") -> "PaymentSeries":
         if not isinstance(other, PaymentSeriesBase):
             raise TypeError(f"Cannot add {type(other)} to {type(self)}")
-
-        # iter_pmts = heapq.merge(iter(self), iter(other), key=lambda pmt: pmt.date)
-        # grouped = groupby(iter_pmts, key=lambda pmt: pmt.date)
-        # pmts = (Payment(date=dt, value=sum(pmt.value for pmt in pmts)) for dt, pmts in grouped)
-        # return PaymentSeries(payment_series=pmts)
 
         def summed_payments(first, second) -> Iterable[Payment]:
             first = iter(first)
@@ -111,12 +122,11 @@ class PaymentSeriesBase[P](Node[P], ABC):
                     yield second_pmt
                     second_pmt = next(second, None)
                 else:
-                    yield Payment(date=first_pmt.date, value=first_pmt.value + second_pmt.value)
+                    yield Payment(date=first_pmt.date, value=lambda fp=first_pmt, sp=second_pmt: fp.value + sp.value)
                     first_pmt = next(first, None)
                     second_pmt = next(second, None)
 
         return PaymentSeries(payment_series=summed_payments(self, other))
-
 
     def __radd__(self, other: "PaymentSeriesBase"):
         return self.__add__(other)
