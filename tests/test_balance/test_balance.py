@@ -130,7 +130,7 @@ def test_balance_repr_with_value():
 def test_balance_repr_with_callable():
     balance = Balance(datetime.date(2023, 1, 1), lambda: 100.0)
     repr_str = repr(balance)
-    assert "Balance(date=2023-01-01, value=() -> float)" == repr_str
+    assert "Balance(date=2023-01-01, value=<unevaluated>)" == repr_str
 
 def test_balance_repr_after_evaluation():
     balance = Balance(datetime.date(2023, 1, 1), lambda: 100.0)

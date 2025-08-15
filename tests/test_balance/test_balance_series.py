@@ -34,8 +34,7 @@ def test_balance_series_iter_cache():
     mock_value1.assert_not_called()
     mock_value2.assert_not_called()
     for r1, r2 in zip(result1, result2):
-        assert r1.date == r2.date
-        assert r1.value == r2.value
+        assert r1 is r2
 
 
 def test_balance_series_at_exact_date():

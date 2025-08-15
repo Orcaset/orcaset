@@ -62,7 +62,7 @@ class Balance:
         return Balance(date=self.date, value=lambda: -self.value)
 
     def __repr__(self) -> str:
-        return f"Balance(date={self.date}, value={self._value if self._value else '() -> float'})"
+        return f"Balance(date={self.date}, value={self._value if self._value else '<unevaluated>'})"
 
     def __eq__(self, other: object) -> bool:
         if not isinstance(other, Balance):
@@ -70,7 +70,7 @@ class Balance:
         return self.date == other.date and self.value == other.value
 
 
-def create_merged_balances(iter_first, iter_second, op: Callable[[float, float], float]) -> Iterable[Balance]:
+def _combine_balance_series(iter_first, iter_second, op: Callable[[float, float], float]) -> Iterable[Balance]:
     """
     Merge two balance iterators using the provided operator.
     
@@ -170,7 +170,7 @@ class BalanceSeriesBase[P](Node[P], ABC):
         if not isinstance(other, BalanceSeriesBase):
             raise TypeError(f"Cannot add {type(other)} to {type(self)}")
 
-        return BalanceSeries(series=create_merged_balances(iter(self), iter(other), operator.add))
+        return BalanceSeries(series=_combine_balance_series(iter(self), iter(other), operator.add))
 
     @overload
     def __sub__(self, other: float | int) -> "BalanceSeries": ...
@@ -183,7 +183,7 @@ class BalanceSeriesBase[P](Node[P], ABC):
         if not isinstance(other, BalanceSeriesBase):
             raise TypeError(f"Cannot subtract {type(other)} from {type(self)}")
 
-        return BalanceSeries(series=create_merged_balances(iter(self), iter(other), operator.sub))
+        return BalanceSeries(series=_combine_balance_series(iter(self), iter(other), operator.sub))
 
     @overload
     def __mul__(self, other: float | int) -> "BalanceSeries": ...
@@ -196,7 +196,7 @@ class BalanceSeriesBase[P](Node[P], ABC):
         if not isinstance(other, BalanceSeriesBase):
             raise TypeError(f"Cannot multiply {type(self)} by {type(other)}")
 
-        return BalanceSeries(series=create_merged_balances(iter(self), iter(other), operator.mul))
+        return BalanceSeries(series=_combine_balance_series(iter(self), iter(other), operator.mul))
 
     @overload
     def __truediv__(self, other: float | int) -> "BalanceSeries": ...
@@ -209,7 +209,7 @@ class BalanceSeriesBase[P](Node[P], ABC):
         if not isinstance(other, BalanceSeriesBase):
             raise TypeError(f"Cannot divide {type(self)} by {type(other)}")
 
-        return BalanceSeries(series=create_merged_balances(iter(self), iter(other), operator.truediv))
+        return BalanceSeries(series=_combine_balance_series(iter(self), iter(other), operator.truediv))
 
     def __neg__(self) -> "BalanceSeries":
         """Return a new BalanceSeries that negates the balances of `self`"""
