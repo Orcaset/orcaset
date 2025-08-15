@@ -33,5 +33,3 @@ def test_accrual_series_addition():
     assert list(iter(series1 + series2)) == doubled_accruals
     assert list(iter(series1 + series2 + series3)) == tripled_accruals
 
-    if __name__ == "__main__":
-        test_accrual_series_addition()

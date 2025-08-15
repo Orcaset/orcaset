@@ -1,12 +1,10 @@
 from datetime import date
 from typing import Callable
-from dataclasses import dataclass, field
 
 from .period import Period
 from .yearfrac import YF
 
 
-@dataclass(slots=True)
 class Accrual:
     """
     An accrual over a period of time with an associated function to calculate partial period accruals.
@@ -17,31 +15,28 @@ class Accrual:
         yf: A function that takes two dates and returns the fraction of a year between them.
     """
 
-    period: Period
-    _f: Callable[[], float] = field(repr=False)
-    yf: Callable[[date, date], float] | YF._Actual360 | YF._CMonthly | YF._Thirty360 = field(repr=False)
-    _value: float = None  # type: ignore
-
     def __init__(
         self,
         period: Period,
         value: float | Callable[[], float],
         yf: Callable[[date, date], float] | YF._Actual360 | YF._CMonthly | YF._Thirty360,
     ):
-        object.__setattr__(self, "period", period)
+        self.period = period
+        self.yf = yf
+
         if isinstance(value, (float, int)):
-            object.__setattr__(self, "_f", lambda: value)
-            object.__setattr__(self, "_value", value)
+            self._f: Callable[[], float] = lambda: value
+            self._value = value
         else:
-            object.__setattr__(self, "_f", value)
-        object.__setattr__(self, "yf", yf)
+            self._f: Callable[[], float] = value
+            self._value = None
 
     @property
     def value(self) -> float:
-        value = getattr(self, "_value", None)
+        value = self._value
         if value is None:
             value = self._f()
-            setattr(self, "_value", value)
+            self._value = value
         return value
 
     @classmethod
@@ -112,3 +107,15 @@ class Accrual:
 
     def __neg__(self):
         return Accrual(period=self.period, value=lambda: -self.value, yf=self.yf)
+    
+    def __repr__(self) -> str:
+        return f"Accrual(period={self.period.__repr__()}, value={self._value if self._value else '() -> float'}, yf={self.yf.__repr__()})"
+    
+    def __eq__(self, value: object) -> bool:
+        if not isinstance(value, Accrual):
+            return NotImplemented
+        return (
+            self.period == value.period
+            and self.value == value.value
+            and self.yf == value.yf
+        )
