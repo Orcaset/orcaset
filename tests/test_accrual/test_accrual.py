@@ -1,4 +1,5 @@
 from datetime import date
+from unittest.mock import Mock
 
 import pytest
 
@@ -292,3 +293,108 @@ class TestAccrualChainedOperations:
         # Now access the value
         assert result.value == -5.0
         assert call_count == 1  # Function called once
+
+
+class TestAccrualLazyEvaluation:
+    def test_add_lazy_evaluation(self):
+        period = Period(date(2023, 1, 1), date(2023, 12, 31))
+        mock_func = Mock(return_value=100.0)
+        accrual = Accrual(period, mock_func, YF.actual360)
+        
+        result = accrual + 50.0
+        mock_func.assert_not_called()
+        
+        assert result.value == 150.0
+        mock_func.assert_called_once()
+
+    def test_radd_lazy_evaluation(self):
+        period = Period(date(2023, 1, 1), date(2023, 12, 31))
+        mock_func = Mock(return_value=100.0)
+        accrual = Accrual(period, mock_func, YF.actual360)
+        
+        result = 50.0 + accrual
+        mock_func.assert_not_called()
+        
+        assert result.value == 150.0
+        mock_func.assert_called_once()
+
+    def test_sub_lazy_evaluation(self):
+        period = Period(date(2023, 1, 1), date(2023, 12, 31))
+        mock_func = Mock(return_value=100.0)
+        accrual = Accrual(period, mock_func, YF.actual360)
+        
+        result = accrual - 30.0
+        mock_func.assert_not_called()
+        
+        assert result.value == 70.0
+        mock_func.assert_called_once()
+
+    def test_mul_lazy_evaluation(self):
+        period = Period(date(2023, 1, 1), date(2023, 12, 31))
+        mock_func = Mock(return_value=100.0)
+        accrual = Accrual(period, mock_func, YF.actual360)
+        
+        result = accrual * 2.0
+        mock_func.assert_not_called()
+        
+        assert result.value == 200.0
+        mock_func.assert_called_once()
+
+    def test_rmul_lazy_evaluation(self):
+        period = Period(date(2023, 1, 1), date(2023, 12, 31))
+        mock_func = Mock(return_value=100.0)
+        accrual = Accrual(period, mock_func, YF.actual360)
+        
+        result = 2.0 * accrual
+        mock_func.assert_not_called()
+        
+        assert result.value == 200.0
+        mock_func.assert_called_once()
+
+    def test_truediv_lazy_evaluation(self):
+        period = Period(date(2023, 1, 1), date(2023, 12, 31))
+        mock_func = Mock(return_value=100.0)
+        accrual = Accrual(period, mock_func, YF.actual360)
+        
+        result = accrual / 2.0
+        mock_func.assert_not_called()
+        
+        assert result.value == 50.0
+        mock_func.assert_called_once()
+
+    def test_neg_lazy_evaluation(self):
+        period = Period(date(2023, 1, 1), date(2023, 12, 31))
+        mock_func = Mock(return_value=100.0)
+        accrual = Accrual(period, mock_func, YF.actual360)
+        
+        result = -accrual
+        mock_func.assert_not_called()
+        
+        assert result.value == -100.0
+        mock_func.assert_called_once()
+
+    def test_eq_lazy_evaluation(self):
+        period = Period(date(2023, 1, 1), date(2023, 12, 31))
+        mock_func1 = Mock(return_value=100.0)
+        mock_func2 = Mock(return_value=100.0)
+        accrual1 = Accrual(period, mock_func1, YF.actual360)
+        accrual2 = Accrual(period, mock_func2, YF.actual360)
+        
+        result = accrual1 == accrual2
+        assert result is True
+        mock_func1.assert_called_once()
+        mock_func2.assert_called_once()
+
+    def test_split_at_lazy_evaluation(self):
+        period = Period(date(2023, 1, 1), date(2023, 12, 31))
+        mock_func = Mock(return_value=360.0)
+        accrual = Accrual(period, mock_func, YF.actual360)
+        split_date = date(2023, 6, 1)
+        
+        first, second = accrual.split_at(split_date)
+        mock_func.assert_called_once()
+        
+        mock_func.reset_mock()
+        total = first.value + second.value
+        mock_func.assert_not_called()
+        assert abs(total - 360.0) < 1e-10
