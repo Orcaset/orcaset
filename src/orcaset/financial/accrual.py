@@ -45,14 +45,19 @@ class Accrual:
         return value
 
     @classmethod
-    def act360(cls, period: Period, value: float) -> "Accrual":
+    def act360(cls, period: Period, value: float | Callable[[], float]) -> "Accrual":
         """Create an accrual using the actual/360 day count convention as the yf."""
         return cls(period, value, YF.actual360)
 
     @classmethod
-    def cmonthly(cls, period: Period, value: float) -> "Accrual":
+    def cmonthly(cls, period: Period, value: float | Callable[[], float]) -> "Accrual":
         """Create an accrual using the calendar monthly day count convention as the yf."""
         return cls(period, value, YF.cmonthly)
+
+    @classmethod
+    def thirty360(cls, period: Period, value: float | Callable[[], float]) -> "Accrual":
+        """Create an accrual using the 30/360 day count convention as the yf."""
+        return cls(period, value, YF.thirty360)
 
     def split_at(self, split_date: date) -> tuple["Accrual", "Accrual"]:
         """
@@ -78,11 +83,7 @@ class Accrual:
 
     def __add__(self, other: float | int):
         if isinstance(other, (float, int)):
-            return Accrual(
-                period=self.period,
-                value=self.value + other,
-                yf=self.yf,
-            )
+            return Accrual(period=self.period, value=lambda: self.value + other, yf=self.yf)
         raise TypeError(f"Unsupported operand type(s) for +: 'Accrual' and '{type(other).__name__}'")
 
     def __radd__(self, other: float | int):
@@ -90,11 +91,7 @@ class Accrual:
 
     def __sub__(self, other: float | int):
         if isinstance(other, (float, int)):
-            return Accrual(
-                period=self.period,
-                value=self.value - other,
-                yf=self.yf,
-            )
+            return Accrual(period=self.period, value=lambda: self.value - other, yf=self.yf)
         raise TypeError(f"Unsupported operand type(s) for -: 'Accrual' and '{type(other).__name__}'")
 
     def __rsub__(self, other: float | int):
@@ -102,11 +99,7 @@ class Accrual:
 
     def __mul__(self, other: float | int):
         if isinstance(other, (float, int)):
-            return Accrual(
-                period=self.period,
-                value=self.value * other,
-                yf=self.yf,
-            )
+            return Accrual(period=self.period, value=lambda: self.value * other, yf=self.yf)
         raise TypeError(f"Unsupported operand type(s) for *: 'Accrual' and '{type(other).__name__}'")
 
     def __rmul__(self, other: float | int):
@@ -114,16 +107,8 @@ class Accrual:
 
     def __truediv__(self, other: float | int):
         if isinstance(other, (float, int)):
-            return Accrual(
-                period=self.period,
-                value=self.value / other,
-                yf=self.yf,
-            )
+            return Accrual(period=self.period, value=lambda: self.value / other, yf=self.yf)
         raise TypeError(f"Unsupported operand type(s) for /: 'Accrual' and '{type(other).__name__}'")
 
     def __neg__(self):
-        return Accrual(
-            period=self.period,
-            value=-self.value,
-            yf=self.yf,
-        )
+        return Accrual(period=self.period, value=lambda: -self.value, yf=self.yf)
