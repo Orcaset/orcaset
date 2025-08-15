@@ -89,9 +89,6 @@ class Accrual:
             return Accrual(period=self.period, value=lambda: self.value - other, yf=self.yf)
         raise TypeError(f"Unsupported operand type(s) for -: 'Accrual' and '{type(other).__name__}'")
 
-    def __rsub__(self, other: float | int):
-        return self.__add__(other)
-
     def __mul__(self, other: float | int):
         if isinstance(other, (float, int)):
             return Accrual(period=self.period, value=lambda: self.value * other, yf=self.yf)
