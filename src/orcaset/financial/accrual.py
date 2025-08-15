@@ -9,6 +9,9 @@ class Accrual:
     """
     An accrual over a period of time with an associated function to calculate partial period accruals.
 
+    Pass a zero argument function as the value to delay evaluation.
+    Accessing the value property or comparing equality will force the evaluation of the function.
+
     Args:
         period: The period of time over which the accrual is calculated.
         value: The value of the accrual for the period.

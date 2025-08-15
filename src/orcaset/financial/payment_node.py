@@ -1,37 +1,40 @@
 import datetime
 from abc import ABC, abstractmethod
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from itertools import takewhile
 from typing import Callable, Iterable, Iterator
 
 from orcaset import Node, cached_generator
 
 
-@dataclass(slots=True)
 class Payment:
-    date: datetime.date
-    _f: Callable[[], float] = field(repr=False)
-    _value: float = None  # type: ignore
+    """
+    Represents a payment made on a specific date.
+
+    Pass a zero argument function as the value to lazily delay evaluation.
+    Accessing the value property or comparing equality will force the evaluation of the function.
+    """
 
     def __init__(self, date: datetime.date, value: float | Callable[[], float]):
-        object.__setattr__(self, "date", date)
+        self.date = date
         if isinstance(value, (float, int)):
-            object.__setattr__(self, "_f", lambda: value)
-            object.__setattr__(self, "_value", value)
+            self._f = lambda: value
+            self._value = value
         else:
-            object.__setattr__(self, "_f", value)
+            self._f = value
+            self._value = None
 
     @property
     def value(self) -> float:
-        value = getattr(self, "_value", None)
+        value = self._value
         if value is None:
             value = self._f()
-            setattr(self, "_value", value)
+            self._value = value
         return value
 
     def __add__(self, other: float | int):
         if isinstance(other, (float, int)):
-            return Payment(date=self.date, value=self.value + other)
+            return Payment(date=self.date, value=lambda: self.value + other)
         raise TypeError(f"Cannot add {type(other)} to {type(self)}. Only float or int is allowed.")
 
     def __radd__(self, other: float | int):
@@ -39,15 +42,12 @@ class Payment:
 
     def __sub__(self, other: float | int):
         if isinstance(other, (float, int)):
-            return Payment(date=self.date, value=self.value - other)
+            return Payment(date=self.date, value=lambda: self.value - other)
         raise TypeError(f"Cannot subtract {type(other)} from {type(self)}. Only float or int is allowed.")
-
-    def __rsub__(self, other: float | int):
-        return self.__add__(other)
 
     def __mul__(self, other: float | int):
         if isinstance(other, (float, int)):
-            return Payment(date=self.date, value=self.value * other)
+            return Payment(date=self.date, value=lambda: self.value * other)
         raise TypeError(f"Cannot multiply {type(other)} with {type(self)}. Only float or int is allowed.")
 
     def __rmul__(self, other: float | int):
@@ -55,11 +55,11 @@ class Payment:
 
     def __truediv__(self, other: float | int):
         if isinstance(other, (float, int)):
-            return Payment(date=self.date, value=self.value / other)
+            return Payment(date=self.date, value=lambda: self.value / other)
         raise TypeError(f"Cannot divide {type(self)} by {type(other)}. Only float or int is allowed.")
 
     def __neg__(self):
-        return Payment(date=self.date, value=-self.value)
+        return Payment(date=self.date, value=lambda: -self.value)
 
 
 @dataclass

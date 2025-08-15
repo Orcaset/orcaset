@@ -1,36 +1,39 @@
 import datetime
 from abc import ABC, abstractmethod
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Callable, Iterable, Iterator
 
 from orcaset import Node, cached_generator, merge_distinct
 
 
-@dataclass(slots=True)
 class Balance:
-    date: datetime.date
-    _f: Callable[[], float] = field(repr=False)
-    _value: float = None  # type: ignore
+    """
+    Represents a financial balance at a specific date.
+
+    Pass a zero argument function as the value to lazily delay evaluation.
+    Accessing the value property or comparing equality will force the evaluation of the function.
+    """
 
     def __init__(self, date: datetime.date, value: float | Callable[[], float]):
-        object.__setattr__(self, "date", date)
+        self.date = date
         if isinstance(value, (float, int)):
-            object.__setattr__(self, "_f", lambda: value)
-            object.__setattr__(self, "_value", value)
+            self._f = lambda: value
+            self._value = value
         else:
-            object.__setattr__(self, "_f", value)
+            self._f = value
+            self._value = None
 
     @property
     def value(self) -> float:
-        value = getattr(self, "_value", None)
+        value = self._value
         if value is None:
             value = self._f()
-            setattr(self, "_value", value)
+            self._value = value
         return value
 
     def __add__(self, other: float | int):
         if isinstance(other, (float, int)):
-            return Balance(date=self.date, value=self.value + other)
+            return Balance(date=self.date, value=lambda: self.value + other)
         raise TypeError(f"Cannot add {type(other)} to {type(self)}. Use `Balance.__add__` instead.")
 
     def __radd__(self, other: float | int):
@@ -38,15 +41,12 @@ class Balance:
 
     def __sub__(self, other: float | int):
         if isinstance(other, (float, int)):
-            return Balance(date=self.date, value=self.value - other)
+            return Balance(date=self.date, value=lambda: self.value - other)
         raise TypeError(f"Cannot subtract {type(other)} from {type(self)}. Use `Balance.__sub__` instead.")
-
-    def __rsub__(self, other: float | int):
-        return self.__add__(other)
 
     def __mul__(self, other: float | int):
         if isinstance(other, (float, int)):
-            return Balance(date=self.date, value=self.value * other)
+            return Balance(date=self.date, value=lambda: self.value * other)
         raise TypeError(f"Cannot multiply {type(other)} with {type(self)}. Use `Balance.__mul__` instead.")
 
     def __rmul__(self, other: float | int):
@@ -54,11 +54,19 @@ class Balance:
 
     def __truediv__(self, other: float | int):
         if isinstance(other, (float, int)):
-            return Balance(date=self.date, value=self.value / other)
+            return Balance(date=self.date, value=lambda: self.value / other)
         raise TypeError(f"Cannot divide {type(self)} by {type(other)}. Use `Balance.__truediv__` instead.")
 
     def __neg__(self):
-        return Balance(date=self.date, value=-self.value)
+        return Balance(date=self.date, value=lambda: -self.value)
+
+    def __repr__(self) -> str:
+        return f"Balance(date={self.date}, value={self._value if self._value else '() -> float'})"
+    
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, Balance):
+            return NotImplemented
+        return self.date == other.date and self.value == other.value
 
 
 @dataclass
