@@ -53,22 +53,20 @@ class TestAccrualClassMethods:
 
 class TestAccrualValue:
     def test_value_caching_with_callable(self):
-        call_count = 0
-        def counting_func():
-            nonlocal call_count
-            call_count += 1
-            return 42.0
+        value = Mock(return_value=42.0)
         
         period = Period(date(2023, 1, 1), date(2023, 12, 31))
-        accrual = Accrual(period, counting_func, YF.actual360)
-        
+        accrual = Accrual(period, value, YF.actual360)
+
         # First access should call the function
+        value.assert_not_called()
         assert accrual.value == 42.0
-        assert call_count == 1
+        value.assert_called_once()
         
         # Second access should use cached value
+        assert accrual._value == 42.0
         assert accrual.value == 42.0
-        assert call_count == 1
+        value.assert_called_once()
 
     def test_value_with_static_float(self):
         period = Period(date(2023, 1, 1), date(2023, 12, 31))
@@ -77,14 +75,16 @@ class TestAccrualValue:
         assert accrual.value == 75.5
 
 
-class TestAccrualSplitAt:
-    def test_split_at_valid_date(self):
+class TestAccrualSplit:
+    def test_split_valid_date(self):
+        value = Mock(return_value=360.0)
         period = Period(date(2023, 1, 1), date(2023, 12, 31))
-        accrual = Accrual.act360(period, 360.0)
+        accrual = Accrual.act360(period, value)
         split_date = date(2023, 6, 1)
         
-        first, second = accrual.split_at(split_date)
-        
+        first, second = accrual.split(split_date)
+        value.assert_not_called()
+
         assert first.period.start == period.start
         assert first.period.end == split_date
         assert second.period.start == split_date
@@ -93,31 +93,38 @@ class TestAccrualSplitAt:
         # Values should sum to original
         assert abs((first.value + second.value) - 360.0) < 1e-10
 
-    def test_split_at_invalid_date_before_start(self):
+    def test_split_invalid_date_before_start(self):
+        value = Mock(return_value=100.0)
         period = Period(date(2023, 6, 1), date(2023, 12, 31))
-        accrual = Accrual.act360(period, 100.0)
-        
-        with pytest.raises(ValueError, match="Split date .* must be within the accrual period"):
-            accrual.split_at(date(2023, 1, 1))
+        accrual = Accrual.act360(period, value)
 
-    def test_split_at_invalid_date_after_end(self):
+        with pytest.raises(ValueError, match="Split date .* must be within the accrual period"):
+            accrual.split(date(2023, 1, 1))
+        value.assert_not_called()
+
+    def test_split_invalid_date_after_end(self):
+        value = Mock(return_value=100.0)
         period = Period(date(2023, 1, 1), date(2023, 6, 30))
-        accrual = Accrual.act360(period, 100.0)
+        accrual = Accrual.act360(period, value)
         
         with pytest.raises(ValueError, match="Split date .* must be within the accrual period"):
-            accrual.split_at(date(2023, 12, 31))
+            accrual.split(date(2023, 12, 31))
+        value.assert_not_called()
 
-    def test_split_at_edge_cases(self):
+    def test_split_edge_cases(self):
+        value = Mock(return_value=100.0)
         period = Period(date(2023, 1, 1), date(2023, 12, 31))
-        accrual = Accrual.act360(period, 100.0)
+        accrual = Accrual.act360(period, value)
         
         # Test at start date (should fail)
         with pytest.raises(ValueError):
-            accrual.split_at(period.start)
+            accrual.split(period.start)
         
         # Test at end date (should fail)
         with pytest.raises(ValueError):
-            accrual.split_at(period.end)
+            accrual.split(period.end)
+        
+        value.assert_not_called()
 
 
 class TestAccrualArithmetic:
@@ -277,22 +284,18 @@ class TestAccrualChainedOperations:
         assert result.yf == YF.actual360
 
     def test_lazy_evaluation_in_operations(self):
-        call_count = 0
-        def counting_func():
-            nonlocal call_count
-            call_count += 1
-            return 100.0
+        value = Mock(return_value=100.0)
         
         period = Period(date(2023, 1, 1), date(2023, 12, 31))
-        accrual = Accrual(period, counting_func, YF.actual360)
-        
+        accrual = Accrual(period, value, YF.actual360)
+
         # Create a chain of operations but don't access value yet
         result = -((((accrual + 50) * 2) / 10) - 25)
-        assert call_count == 0  # Function not called yet
-        
+        value.assert_not_called()
+
         # Now access the value
         assert result.value == -5.0
-        assert call_count == 1  # Function called once
+        value.assert_called_once()
 
 
 class TestAccrualLazyEvaluation:
@@ -384,17 +387,3 @@ class TestAccrualLazyEvaluation:
         assert result is True
         mock_func1.assert_called_once()
         mock_func2.assert_called_once()
-
-    def test_split_at_lazy_evaluation(self):
-        period = Period(date(2023, 1, 1), date(2023, 12, 31))
-        mock_func = Mock(return_value=360.0)
-        accrual = Accrual(period, mock_func, YF.actual360)
-        split_date = date(2023, 6, 1)
-        
-        first, second = accrual.split_at(split_date)
-        mock_func.assert_called_once()
-        
-        mock_func.reset_mock()
-        total = first.value + second.value
-        mock_func.assert_not_called()
-        assert abs(total - 360.0) < 1e-10

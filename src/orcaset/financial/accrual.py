@@ -57,7 +57,7 @@ class Accrual:
         """Create an accrual using the 30/360 day count convention as the yf."""
         return cls(period, value, YF.thirty360)
 
-    def split_at(self, split_date: date) -> tuple["Accrual", "Accrual"]:
+    def split(self, split_date: date) -> tuple["Accrual", "Accrual"]:
         """
         Split an accrual at a given date, proportionally allocating the value.
 
@@ -71,12 +71,12 @@ class Accrual:
         first_fraction = self.yf(self.period.start, split_date)
         second_fraction = self.yf(split_date, self.period.end)
 
-        first_value = self.value * (first_fraction / total_fraction)
-        second_value = self.value * (second_fraction / total_fraction)
+        first_frac = first_fraction / total_fraction
+        second_frac = second_fraction / total_fraction
 
         return (
-            Accrual(Period(self.period.start, split_date), first_value, self.yf),
-            Accrual(Period(split_date, self.period.end), second_value, self.yf),
+            Accrual(Period(self.period.start, split_date), lambda: self.value * first_frac, self.yf),
+            Accrual(Period(split_date, self.period.end), lambda: self.value * second_frac, self.yf),
         )
 
     def __add__(self, other: float | int):
