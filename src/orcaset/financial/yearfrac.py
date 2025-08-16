@@ -13,10 +13,19 @@ def is_month_end(dt: date):
 class YF:
     """Common year fraction functions."""
 
+    class _NA:
+        def __call__(self, _: date, __: date) -> float:
+            raise TypeError(
+                "No valid YF function. This may be the result of combining Accruals with different year fractions."
+            )
+
+        def __repr__(self):
+            return "YF.na"
+
     class _Actual360:
         def __call__(self, dt1: date, dt2: date) -> float:
             return (dt2 - dt1).days / 360
-        
+
         def __repr__(self):
             return "YF.actual360"
 
@@ -46,7 +55,7 @@ class YF:
 
             days = (d2 + m2 * 30 + y2 * 360) - (d1 + m1 * 30 + y1 * 360)
             return days / 360 * flipped
-        
+
         def __repr__(self):
             return "YF.thirty360"
 
@@ -86,7 +95,7 @@ class YF:
             end_stub = (end_month_last_day - d2) / end_month_last_day
 
             return (year_month_frac + (start_stub - end_stub) / 12) * flipped
-        
+
         def __repr__(self):
             return "YF.cmonthly"
 
@@ -95,3 +104,5 @@ class YF:
     thirty360 = _Thirty360()
 
     cmonthly = _CMonthly()
+
+    na = _NA()
