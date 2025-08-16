@@ -15,7 +15,7 @@ class YF:
 
     class _NA:
         def __call__(self, _: date, __: date) -> float:
-            raise TypeError(
+            raise NotImplementedError(
                 "No valid YF function. This may be the result of combining Accruals with different year fractions."
             )
 

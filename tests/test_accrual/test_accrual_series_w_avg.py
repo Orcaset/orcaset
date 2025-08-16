@@ -6,7 +6,7 @@ import pytest
 def test_w_avg_single_accrual():
     """Test w_avg with a single accrual covering the entire period."""
     accrual = Accrual.act360(Period(date(2023, 1, 1), date(2023, 2, 1)), 100.0)
-    series = AccrualSeries(accrual_series=[accrual])
+    series = AccrualSeries(series=[accrual])
     
     result = series.w_avg(date(2023, 1, 1), date(2023, 2, 1))
     assert result == pytest.approx(100.0)
@@ -18,7 +18,7 @@ def test_w_avg_multiple_accruals_same_value():
         Accrual.act360(Period(date(2023, 1, 1), date(2023, 1, 15)), 50.0),
         Accrual.act360(Period(date(2023, 1, 15), date(2023, 2, 1)), 50.0),
     ]
-    series = AccrualSeries(accrual_series=accruals)
+    series = AccrualSeries(series=accruals)
     
     result = series.w_avg(date(2023, 1, 1), date(2023, 2, 1))
     assert result == pytest.approx(50.0)
@@ -30,7 +30,7 @@ def test_w_avg_multiple_accruals_different_values():
         Accrual.act360(Period(date(2023, 1, 1), date(2023, 1, 16)), 100.0),  # 15 days
         Accrual.act360(Period(date(2023, 1, 16), date(2023, 2, 1)), 200.0),  # 16 days
     ]
-    series = AccrualSeries(accrual_series=accruals)
+    series = AccrualSeries(series=accruals)
     
     result = series.w_avg(date(2023, 1, 1), date(2023, 2, 1))
     
@@ -48,7 +48,7 @@ def test_w_avg_partial_period():
         Accrual.act360(Period(date(2023, 1, 1), date(2023, 1, 31)), 100.0),
         Accrual.act360(Period(date(2023, 1, 31), date(2023, 2, 28)), 200.0),
     ]
-    series = AccrualSeries(accrual_series=accruals)
+    series = AccrualSeries(series=accruals)
     
     # Query for middle portion: Jan 15 to Feb 15
     result = series.w_avg(date(2023, 1, 15), date(2023, 2, 15))
@@ -65,7 +65,7 @@ def test_w_avg_no_overlap():
     accruals = [
         Accrual.act360(Period(date(2023, 1, 1), date(2023, 1, 31)), 100.0),
     ]
-    series = AccrualSeries(accrual_series=accruals)
+    series = AccrualSeries(series=accruals)
     
     # Query for period after all accruals
     result = series.w_avg(date(2023, 3, 1), date(2023, 3, 31))
@@ -74,7 +74,7 @@ def test_w_avg_no_overlap():
 
 def test_w_avg_empty_series():
     """Test w_avg with an empty accrual series."""
-    series = AccrualSeries(accrual_series=[])
+    series = AccrualSeries(series=[])
     
     result = series.w_avg(date(2023, 1, 1), date(2023, 2, 1))
     assert result == pytest.approx(0.0)
@@ -84,7 +84,7 @@ def test_w_avg_zero_weight():
     """Test w_avg when total weight is zero (edge case)."""
     # Create an accrual with same start and end date (zero period)
     accrual = Accrual(Period(date(2023, 1, 1), date(2023, 1, 1)), 100.0, YF.actual360)
-    series = AccrualSeries(accrual_series=[accrual])
+    series = AccrualSeries(series=[accrual])
     
     result = series.w_avg(date(2023, 1, 1), date(2023, 1, 1))
     assert result == pytest.approx(0.0)
@@ -97,7 +97,7 @@ def test_w_avg_single_day_periods():
         Accrual.act360(Period(date(2023, 1, 2), date(2023, 1, 3)), 200.0),
         Accrual.act360(Period(date(2023, 1, 3), date(2023, 1, 4)), 300.0),
     ]
-    series = AccrualSeries(accrual_series=accruals)
+    series = AccrualSeries(series=accruals)
     
     result = series.w_avg(date(2023, 1, 1), date(2023, 1, 4))
     
@@ -112,7 +112,7 @@ def test_w_avg_different_year_fraction_methods():
         Accrual(Period(date(2023, 1, 1), date(2023, 1, 16)), 100.0, YF.actual360),
         Accrual(Period(date(2023, 1, 16), date(2023, 2, 1)), 200.0, YF.thirty360),
     ]
-    series = AccrualSeries(accrual_series=accruals)
+    series = AccrualSeries(series=accruals)
     
     result = series.w_avg(date(2023, 1, 1), date(2023, 2, 1))
     
@@ -129,7 +129,7 @@ def test_w_avg_negative_values():
         Accrual.act360(Period(date(2023, 1, 1), date(2023, 1, 16)), -100.0),
         Accrual.act360(Period(date(2023, 1, 16), date(2023, 2, 1)), 200.0),
     ]
-    series = AccrualSeries(accrual_series=accruals)
+    series = AccrualSeries(series=accruals)
     
     result = series.w_avg(date(2023, 1, 1), date(2023, 2, 1))
     
@@ -147,7 +147,7 @@ def test_w_avg_spanning_multiple_periods():
         Accrual.act360(Period(date(2023, 2, 1), date(2023, 2, 11)), 400.0),   # 10 days
         Accrual.act360(Period(date(2023, 2, 11), date(2023, 2, 21)), 500.0),  # 10 days
     ]
-    series = AccrualSeries(accrual_series=accruals)
+    series = AccrualSeries(series=accruals)
     
     # Query period spans from middle of second accrual to middle of fourth accrual
     result = series.w_avg(date(2023, 1, 16), date(2023, 2, 6))

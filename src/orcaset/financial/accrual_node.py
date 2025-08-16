@@ -2,7 +2,8 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from datetime import date
 from itertools import tee
-from typing import Iterable, Iterator, overload
+import operator
+from typing import Iterable, Iterator, overload, Callable
 
 from ..decorators import cached_generator
 from ..node import Node
@@ -11,41 +12,41 @@ from .period import Period, merged_periods
 from .yearfrac import YF
 
 
-class _RebasedAccrualIterator:
-    def __init__(self, original_accruals: Iterable[Accrual], periods: Iterable[Period]):
-        """
-        Expects `periods` must be sorted by date and be the intersection of the original accruals and the new periods
-        (i.e. new period in `periods` may span multiple original accruals).
-        """
-        self.original_accruals = iter(original_accruals)
-        self.periods = iter(periods)
-        self.current_accrual = next(self.original_accruals, None)
+# class _RebasedAccrualIterator:
+#     def __init__(self, original_accruals: Iterable[Accrual], periods: Iterable[Period]):
+#         """
+#         Expects `periods` must be sorted by date and be the intersection of the original accruals and the new periods
+#         (i.e. new period in `periods` may span multiple original accruals).
+#         """
+#         self.original_accruals = iter(original_accruals)
+#         self.periods = iter(periods)
+#         self.current_accrual = next(self.original_accruals, None)
 
-    def __iter__(self):
-        return self
+#     def __iter__(self):
+#         return self
 
-    def __next__(self):
-        period = next(self.periods)
+#     def __next__(self):
+#         period = next(self.periods)
 
-        # If we've exhausted original accruals or period starts after current accrual ends
-        if self.current_accrual is None or period.start >= self.current_accrual.period.end:
-            return Accrual(period, 0.0, YF.actual360)
+#         # If we've exhausted original accruals or period starts after current accrual ends
+#         if self.current_accrual is None or period.start >= self.current_accrual.period.end:
+#             return Accrual(period, 0.0, YF.actual360)
 
-        # If the current period ends before the first accrual starts, return a zero accrual
-        if period.end <= self.current_accrual.period.start:
-            return Accrual(period, 0.0, self.current_accrual.yf)
+#         # If the current period ends before the first accrual starts, return a zero accrual
+#         if period.end <= self.current_accrual.period.start:
+#             return Accrual(period, 0.0, self.current_accrual.yf)
 
-        # Expects that `periods` intersects with the original accruals, so if there's overlap the start date must always be the same
-        # If the end date is during the current accrual, split the accrual
-        if period.end < self.current_accrual.period.end:
-            first, second = self.current_accrual.split_at(period.end)
-            self.current_accrual = second
-            return first
-        else:
-            # Otherwise, the end date must be the same as the current accrual so return it and advance
-            cf = self.current_accrual
-            self.current_accrual = next(self.original_accruals, None)
-            return cf
+#         # Expects that `periods` intersects with the original accruals, so if there's overlap the start date must always be the same
+#         # If the end date is during the current accrual, split the accrual
+#         if period.end < self.current_accrual.period.end:
+#             first, second = self.current_accrual.split_at(period.end)
+#             self.current_accrual = second
+#             return first
+#         else:
+#             # Otherwise, the end date must be the same as the current accrual so return it and advance
+#             cf = self.current_accrual
+#             self.current_accrual = next(self.original_accruals, None)
+#             return cf
 
 
 class AccrualSeriesBase[P](Node[P], ABC):
@@ -58,39 +59,36 @@ class AccrualSeriesBase[P](Node[P], ABC):
     def __iter__(self) -> Iterator[Accrual]:
         yield from self._accruals()
 
-    def rebase(self, periods: Iterable[Period]) -> "AccrualSeries":
-        """
-        Rebase the accrual series to a new set of periods.
+    # def rebase(self, periods: Iterable[Period]) -> "AccrualSeries":
+    #     """
+    #     Rebase the accrual series to a new set of periods.
 
-        This method will split existing accruals at the boundaries of the new periods
-        and the original accrual periods. The resulting `AccrualSeries` will contain accruals
-        for all unique, contiguous periods from both sources.
+    #     This method will split existing accruals at the boundaries of the new periods
+    #     and the original accrual periods. The resulting `AccrualSeries` will contain accruals
+    #     for all unique, contiguous periods from both sources.
 
-        Any (partial) periods that do not overlap with any existing accruals will be filled with `0.0`.
+    #     Any (partial) periods that do not overlap with any existing accruals will be filled with `0.0`.
 
-        Returns a new `AccrualSeries`.
-        """
-        raise DeprecationWarning("Removing rebase to avoid circularity issues.")
-        # Get the combined set of unique periods using merged_periods
-        unified_periods = merged_periods((a.period for a in iter(self)), iter(periods))
+    #     Returns a new `AccrualSeries`.
+    #     """
+    #     raise DeprecationWarning("Removing rebase to avoid circularity issues.")
+    #     # Get the combined set of unique periods using merged_periods
+    #     unified_periods = merged_periods((a.period for a in iter(self)), iter(periods))
 
-        return AccrualSeries(accrual_series=_RebasedAccrualIterator(self, unified_periods))
+    #     return AccrualSeries(accrual_series=_RebasedAccrualIterator(self, unified_periods))
 
-    @overload
-    def __add__(self, other: "AccrualSeriesBase") -> "AccrualSeriesBase": ...
     @overload
     def __add__(self, other: int | float) -> "AccrualSeriesBase": ...
+    @overload
+    def __add__(self, other: "AccrualSeriesBase") -> "AccrualSeriesBase": ...
     def __add__(self, other: "AccrualSeriesBase | int | float") -> "AccrualSeriesBase":
         # Return a new AccrualSeries that lazily adds the accruals of `self` and `other`
         # Periods iterate over the set of unique dates in both series
-        if isinstance(other, AccrualSeriesBase) or isinstance(other, _AddAccrualSeries):
-            return AccrualSeries(_AddAccrualSeries(first_series=self, second_series=other))
+        if isinstance(other, AccrualSeriesBase):
+            return AccrualSeries(_CombinedAccrualSeries(self, other, operator.add))
         elif isinstance(other, (int, float)):
             # If other is a number, add it to each accrual's value
-            return AccrualSeries(
-                accrual_series=(Accrual(acc.period, lambda a=acc, o=other: a.value + o, acc.yf) for acc in self)
-            )
-
+            return AccrualSeries(series=(acc + other for acc in self))
         return NotImplemented
 
     @overload
@@ -100,61 +98,92 @@ class AccrualSeriesBase[P](Node[P], ABC):
     def __radd__(self, other: "AccrualSeriesBase | int | float"):
         return self.__add__(other)
 
-    def __neg__(self) -> "AccrualSeries":
-        """Return a new AccrualSeries that negates the accruals of `self`"""
-        return AccrualSeries(accrual_series=(-a for a in self))
-
-    def __mul__(self, other) -> "AccrualSeries":
-        if isinstance(other, (int, float)):
-            return AccrualSeries(acc * other for acc in self)
+    @overload
+    def __sub__(self, other: int | float) -> "AccrualSeries": ...
+    @overload
+    def __sub__(self, other: "AccrualSeriesBase") -> "AccrualSeries": ...
+    def __sub__(self, other: "float | int | AccrualSeriesBase") -> "AccrualSeries":
+        if isinstance(other, AccrualSeriesBase):
+            return AccrualSeries(_CombinedAccrualSeries(self, other, operator.sub))
+        elif isinstance(other, (int, float)):
+            return AccrualSeries(series=(a - other for a in self))
+        return NotImplemented
+    
+    @overload
+    def __mul__(self, other: int | float) -> "AccrualSeries": ...
+    @overload
+    def __mul__(self, other: "AccrualSeriesBase") -> "AccrualSeries": ...
+    def __mul__(self, other: "AccrualSeriesBase | int | float") -> "AccrualSeries":
+        if isinstance(other, AccrualSeriesBase):
+            return AccrualSeries(_CombinedAccrualSeries(self, other, operator.mul))
+        elif isinstance(other, (int, float)):
+            return AccrualSeries(series=(a * other for a in self))
         return NotImplemented
 
-    def __rmul__(self, other) -> "AccrualSeries":
+    @overload
+    def __rmul__(self, other: int | float) -> "AccrualSeries": ...
+    @overload
+    def __rmul__(self, other: "AccrualSeriesBase") -> "AccrualSeries": ...
+    def __rmul__(self, other: "AccrualSeriesBase | int | float"):
         return self.__mul__(other)
+
+    def __neg__(self) -> "AccrualSeries":
+        """Return a new AccrualSeries that negates the accruals of `self`"""
+        return AccrualSeries(series=(-a for a in self))
+    
+    @overload
+    def __truediv__(self, other: int | float) -> "AccrualSeries": ...
+    @overload
+    def __truediv__(self, other: "AccrualSeriesBase") -> "AccrualSeries": ...
+    def __truediv__(self, other: "AccrualSeriesBase | int | float") -> "AccrualSeries":
+        if isinstance(other, AccrualSeriesBase):
+            return AccrualSeries(_CombinedAccrualSeries(self, other, operator.truediv))
+        elif isinstance(other, (int, float)):
+            return AccrualSeries(series=(a / other for a in self))
+        return NotImplemented
 
     def after(self, dt: date) -> "AccrualSeries":
         """Get a new `AccrualSeries` containing accruals after the given date. Interpolates a partial accrual starting at `dt`."""
 
-        # return AccrualSeries(accrual_series=(a for a in self.rebase([Period(dt, dt)]) if a.period.start >= dt))
         def split_series(series: AccrualSeriesBase) -> Iterator[Accrual]:
             for accrual in series:
                 if accrual.period.end <= dt:
                     continue
                 if accrual.period.start < dt < accrual.period.end:
-                    _, second = accrual.split_at(dt)
+                    _, second = accrual.split(dt)
                     yield second
                 else:
                     yield accrual
 
-        return AccrualSeries(accrual_series=split_series(self))
+        return AccrualSeries(series=split_series(self))
 
-    def override_accruals(self, accruals: Iterable[Accrual]) -> "AccrualSeries":
-        """
-        Create a new `AccrualSeries` overriding values in the original accrual series.
-        """
-        rebased = self.rebase((a.period for a in accruals))
+    # def override_accruals(self, accruals: Iterable[Accrual]) -> "AccrualSeries":
+    #     """
+    #     Create a new `AccrualSeries` overriding values in the original accrual series.
+    #     """
+    #     rebased = self.rebase((a.period for a in accruals))
 
-        def new_accruals():
-            rebased_iter = tee(rebased, 1)[0]
-            override_iter = tee(accruals, 1)[0]
-            curr_override_accrual = next(override_iter, None)
-            next_accrual = None
+    #     def new_accruals():
+    #         rebased_iter = tee(rebased, 1)[0]
+    #         override_iter = tee(accruals, 1)[0]
+    #         curr_override_accrual = next(override_iter, None)
+    #         next_accrual = None
 
-            for a in rebased_iter:
-                if curr_override_accrual and (
-                    a.period.start >= curr_override_accrual.period.start
-                    and a.period.end <= curr_override_accrual.period.end
-                ):
-                    next_accrual = curr_override_accrual
-                    continue
+    #         for a in rebased_iter:
+    #             if curr_override_accrual and (
+    #                 a.period.start >= curr_override_accrual.period.start
+    #                 and a.period.end <= curr_override_accrual.period.end
+    #             ):
+    #                 next_accrual = curr_override_accrual
+    #                 continue
 
-                if next_accrual and next_accrual == curr_override_accrual:
-                    yield next_accrual
-                    curr_override_accrual = next(override_iter, None)
+    #             if next_accrual and next_accrual == curr_override_accrual:
+    #                 yield next_accrual
+    #                 curr_override_accrual = next(override_iter, None)
 
-                yield a
+    #             yield a
 
-        return AccrualSeries(accrual_series=new_accruals())
+    #     return AccrualSeries(series=new_accruals())
 
     def accrue(self, dt1: date, dt2: date) -> float:
         """Calculate the total accrued value of a series between two dates."""
@@ -168,10 +197,10 @@ class AccrualSeriesBase[P](Node[P], ABC):
                 continue
 
             if accrual.period.start < dt1:
-                accrual = accrual.split_at(dt1)[1]
+                accrual = accrual.split(dt1)[1]
 
             if accrual.period.end > dt2:
-                accrual = accrual.split_at(dt2)[0]
+                accrual = accrual.split(dt2)[0]
 
             accrued_value += accrual.value
             accrual = next(accrual_iter, None)
@@ -196,10 +225,10 @@ class AccrualSeriesBase[P](Node[P], ABC):
             full_period_value = accrual.value
 
             if accrual.period.start < dt1:
-                accrual = accrual.split_at(dt1)[1]
+                accrual = accrual.split(dt1)[1]
 
             if accrual.period.end > dt2:
-                accrual = accrual.split_at(dt2)[0]
+                accrual = accrual.split(dt2)[0]
 
             weight = accrual.yf(accrual.period.start, accrual.period.end)
             total_value += full_period_value * weight
@@ -219,35 +248,44 @@ class AccrualSeries[A: Iterable[Accrual], P](AccrualSeriesBase[P]):
     allows the (de)serialization engine to correctly infer how `accrual_series` should be (de)serialized.
     """
 
-    accrual_series: A
+    series: A
 
     def _accruals(self) -> Iterable[Accrual]:
-        yield from self.accrual_series
+        yield from self.series
 
 
-def _rebase_accruals(accruals: Iterable[Accrual], periods: Iterable[Period]) -> _RebasedAccrualIterator:
-    """
-    Rebase the accrual iterable to a new set of periods.
+# def _rebase_accruals(accruals: Iterable[Accrual], periods: Iterable[Period]) -> _RebasedAccrualIterator:
+#     """
+#     Rebase the accrual iterable to a new set of periods.
 
-    This method will split existing accruals at the boundaries of the new periods
-    and the original accrual periods. The resulting iterable will contain accruals
-    for all unique, contiguous periods from both sources.
+#     This method will split existing accruals at the boundaries of the new periods
+#     and the original accrual periods. The resulting iterable will contain accruals
+#     for all unique, contiguous periods from both sources.
 
-    Any (partial) periods that do not overlap with any existing accruals will be filled with `0.0`.
+#     Any (partial) periods that do not overlap with any existing accruals will be filled with `0.0`.
 
-    Returns a generator that yield the new `Accrual`s.
-    """
-    # Get the combined set of unique periods using merged_periods
-    unified_periods = merged_periods((a.period for a in iter(accruals)), iter(periods))
-    return _RebasedAccrualIterator(accruals, unified_periods)
+#     Returns a generator that yield the new `Accrual`s.
+#     """
+#     # Get the combined set of unique periods using merged_periods
+#     unified_periods = merged_periods((a.period for a in iter(accruals)), iter(periods))
+#     return _RebasedAccrualIterator(accruals, unified_periods)
 
 
-@dataclass(kw_only=True)
-class _AddAccrualSeries:
+@dataclass
+class _CombinedAccrualSeries:
     """Object representing the addition of two `AccrualSeries` objects."""
 
     first_series: AccrualSeriesBase
-    second_series: "AccrualSeriesBase  | _AddAccrualSeries"
+    second_series: AccrualSeriesBase
+    operator: Callable[[float, float], float]
+
+    def _lazy_combine(self, acc1: Accrual | None, acc2: Accrual | None) -> Callable[[], float]:
+        """
+        Combine two values from two accruals using the specified operator.
+
+        If either accrual is None, its value is treated as 0.0 (e.g. None - acc2 == 0 - acc2.value == -acc2.value)
+        """
+        return lambda: self.operator(acc1.value if acc1 else 0.0, acc2.value if acc2 else 0.0)
 
     @cached_generator
     def __iter__(self) -> Iterator[Accrual]:
@@ -264,51 +302,44 @@ class _AddAccrualSeries:
         while first_accrual is not None or second_accrual is not None:
             # First accrual is exhausted, yield from second
             if first_accrual is None:
-                yield second_accrual  # type: ignore
+                yield Accrual(second_accrual.period, self._lazy_combine(None, second_accrual), second_accrual.yf)  # type: ignore
                 second_accrual = next(second_iter, None)
             # Second accrual is exhausted, yield from first
             elif second_accrual is None:
-                yield first_accrual
+                yield Accrual(first_accrual.period, self._lazy_combine(first_accrual, None), first_accrual.yf)
                 first_accrual = next(first_iter, None)
             # First accrual ends before second starts, yield first
             elif first_accrual.period.end <= second_accrual.period.start:
-                yield first_accrual
+                yield Accrual(first_accrual.period, self._lazy_combine(first_accrual, None), first_accrual.yf)
                 first_accrual = next(first_iter, None)
             # Second accrual ends before first starts, yield second
             elif second_accrual.period.end <= first_accrual.period.start:
-                yield second_accrual
+                yield Accrual(second_accrual.period, self._lazy_combine(None, second_accrual), second_accrual.yf)
                 second_accrual = next(second_iter, None)
             # First accrual starts before second (and must end after second starts)
             elif first_accrual.period.start < second_accrual.period.start:
-                first_part, first_accrual = first_accrual.split_at(second_accrual.period.start)
-                yield first_part
+                first_part, first_accrual = first_accrual.split(second_accrual.period.start)
+                yield Accrual(first_part.period, self._lazy_combine(first_part, None), first_part.yf)
             # Second accrual starts before first (and must end after first starts)
             elif second_accrual.period.start < first_accrual.period.start:
-                second_part, second_accrual = second_accrual.split_at(first_accrual.period.start)
-                yield second_part
+                second_part, second_accrual = second_accrual.split(first_accrual.period.start)
+                yield Accrual(second_part.period, self._lazy_combine(None, second_part), second_part.yf)
             # If this stage is reached, both accruals start at the same time
             # First accrual ends before second
             elif first_accrual.period.end < second_accrual.period.end:
-                second_part, second_accrual = second_accrual.split_at(first_accrual.period.end)
-                yield Accrual(
-                    first_accrual.period, lambda fa=first_accrual, sp=second_part: fa.value + sp.value, first_accrual.yf
-                )
+                second_part, second_accrual = second_accrual.split(first_accrual.period.end)
+                yf = first_accrual.yf if first_accrual.yf == second_part.yf else YF.na
+                yield Accrual(first_accrual.period, self._lazy_combine(first_accrual, second_part), yf)
                 first_accrual = next(first_iter, None)
             # Second accrual ends before first
             elif second_accrual.period.end < first_accrual.period.end:
-                first_part, first_accrual = first_accrual.split_at(second_accrual.period.end)
-                yield Accrual(
-                    second_accrual.period,
-                    lambda sa=second_accrual, fp=first_part: sa.value + fp.value,
-                    second_accrual.yf,
-                )
+                first_part, first_accrual = first_accrual.split(second_accrual.period.end)
+                yf = first_part.yf if first_part.yf == second_accrual.yf else YF.na
+                yield Accrual(second_accrual.period, self._lazy_combine(first_part, second_accrual), yf)
                 second_accrual = next(second_iter, None)
             # Both end at the same time
             else:
-                yield Accrual(
-                    first_accrual.period,
-                    lambda fa=first_accrual, sa=second_accrual: fa.value + sa.value,
-                    first_accrual.yf,
-                )
+                yf = first_accrual.yf if first_accrual.yf == second_accrual.yf else YF.na
+                yield Accrual(first_accrual.period, self._lazy_combine(first_accrual, second_accrual), yf)
                 first_accrual = next(first_iter, None)
                 second_accrual = next(second_iter, None)
