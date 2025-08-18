@@ -193,22 +193,22 @@ income.accrue(date(2024, 12, 31), date(2025, 12, 31))
 Financial models are often highly interdependent, either directly or indirectly across other line items. In order to improve performance, `AccrualBaseSeries` caches values yielded from `_accruals` (and from `_payments` and `_balances` in the analogous `PaymentBaseSeries` and `BalanceBaseSeries` classes respectively).
 
 ```python
-income.revenue.accrue(date(2025, 12, 31), date(2026, 12, 31))
-# 1345.6001292365825
+income.opex.accrue(date(2024, 12, 31), date(2025, 12, 31))
+# -790.0790625000001
 
-# Update the growth rate to 7%
-income.revenue.growth_rate = 0.07
-income.revenue.accrue(date(2025, 12, 31), date(2026, 12, 31))
-# 1345.6001292365825  NOT UPDATED FOR THE NEW GROWTH RATE
+# Update the expense margin
+income.opex.percent_revenue = 0.7
+income.opex.accrue(date(2024, 12, 31), date(2025, 12, 31))
+# -790.0790625000001  NOT UPDATED FOR THE NEW EXPENSE RATIO
 ```
 
 To avoid accidentally using stale assumptions, runs should be encapsulated in a context manager. On entry to the context manager, the cache for the entire model will be cleared and a clean, deep copy of the model will be returned.
 
 ```python
 with income as inc:
-    inc.revenue.growth_rate = 0.07
-    inc.revenue.accrue(date(2025, 12, 31), date(2026, 12, 31))
-    # 1509.2044705545534  REFLECTS UPDATED GROWTH RATE AS EXPECTED
+    inc.opex.percent_revenue = 0.7
+    inc.opex.accrue(date(2025, 12, 31), date(2026, 12, 31))
+    # -893.3970937500002  REFLECTS UPDATED EXPENSES AS EXPECTED
 ```
 
 Alternatively, the cache can be cleared manually with `cache_clear()`.
