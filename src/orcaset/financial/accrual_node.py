@@ -187,6 +187,12 @@ class AccrualSeriesBase[P](Node[P], ABC):
 
     def accrue(self, dt1: date, dt2: date) -> float:
         """Calculate the total accrued value of a series between two dates."""
+        if dt1 == dt2:
+            return 0.0
+        
+        if dt1 > dt2:
+            dt1, dt2 = dt2, dt1
+
         accrual_iter = iter(self)
         accrual = next(accrual_iter, None)
         accrued_value = 0.0
