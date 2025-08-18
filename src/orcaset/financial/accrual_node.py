@@ -1,7 +1,6 @@
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from datetime import date
-from itertools import tee
 import operator
 from typing import Iterable, Iterator, overload, Callable
 
@@ -12,41 +11,41 @@ from .period import Period, merged_periods
 from .yearfrac import YF
 
 
-# class _RebasedAccrualIterator:
-#     def __init__(self, original_accruals: Iterable[Accrual], periods: Iterable[Period]):
-#         """
-#         Expects `periods` must be sorted by date and be the intersection of the original accruals and the new periods
-#         (i.e. new period in `periods` may span multiple original accruals).
-#         """
-#         self.original_accruals = iter(original_accruals)
-#         self.periods = iter(periods)
-#         self.current_accrual = next(self.original_accruals, None)
+class _RebasedAccrualIterator:
+    def __init__(self, original_accruals: Iterable[Accrual], periods: Iterable[Period]):
+        """
+        Expects `periods` must be sorted by date and be the intersection of the original accruals and the new periods
+        (i.e. new period in `periods` may span multiple original accruals).
+        """
+        self.original_accruals = iter(original_accruals)
+        self.periods = iter(periods)
+        self.current_accrual = next(self.original_accruals, None)
 
-#     def __iter__(self):
-#         return self
+    def __iter__(self):
+        return self
 
-#     def __next__(self):
-#         period = next(self.periods)
+    def __next__(self):
+        period = next(self.periods)
 
-#         # If we've exhausted original accruals or period starts after current accrual ends
-#         if self.current_accrual is None or period.start >= self.current_accrual.period.end:
-#             return Accrual(period, 0.0, YF.actual360)
+        # If we've exhausted original accruals or period starts after current accrual ends
+        if self.current_accrual is None or period.start >= self.current_accrual.period.end:
+            return Accrual(period, 0.0, YF.actual360)
 
-#         # If the current period ends before the first accrual starts, return a zero accrual
-#         if period.end <= self.current_accrual.period.start:
-#             return Accrual(period, 0.0, self.current_accrual.yf)
+        # If the current period ends before the first accrual starts, return a zero accrual
+        if period.end <= self.current_accrual.period.start:
+            return Accrual(period, 0.0, self.current_accrual.yf)
 
-#         # Expects that `periods` intersects with the original accruals, so if there's overlap the start date must always be the same
-#         # If the end date is during the current accrual, split the accrual
-#         if period.end < self.current_accrual.period.end:
-#             first, second = self.current_accrual.split_at(period.end)
-#             self.current_accrual = second
-#             return first
-#         else:
-#             # Otherwise, the end date must be the same as the current accrual so return it and advance
-#             cf = self.current_accrual
-#             self.current_accrual = next(self.original_accruals, None)
-#             return cf
+        # Expects that `periods` intersects with the original accruals, so if there's overlap the start date must always be the same
+        # If the end date is during the current accrual, split the accrual
+        if period.end < self.current_accrual.period.end:
+            first, second = self.current_accrual.split(period.end)
+            self.current_accrual = second
+            return first
+        else:
+            # Otherwise, the end date must be the same as the current accrual so return it and advance
+            cf = self.current_accrual
+            self.current_accrual = next(self.original_accruals, None)
+            return cf
 
 
 class AccrualSeriesBase[P](Node[P], ABC):
@@ -59,23 +58,22 @@ class AccrualSeriesBase[P](Node[P], ABC):
     def __iter__(self) -> Iterator[Accrual]:
         yield from self._accruals()
 
-    # def rebase(self, periods: Iterable[Period]) -> "AccrualSeries":
-    #     """
-    #     Rebase the accrual series to a new set of periods.
+    def rebase(self, periods: Iterable[Period]) -> "AccrualSeries":
+        """
+        Rebase the accrual series to a new set of periods.
 
-    #     This method will split existing accruals at the boundaries of the new periods
-    #     and the original accrual periods. The resulting `AccrualSeries` will contain accruals
-    #     for all unique, contiguous periods from both sources.
+        This method will split existing accruals at the boundaries of the new periods
+        and the original accrual periods. The resulting `AccrualSeries` will contain accruals
+        for all unique, contiguous periods from both sources.
 
-    #     Any (partial) periods that do not overlap with any existing accruals will be filled with `0.0`.
+        Any (partial) periods that do not overlap with any existing accruals will be filled with `0.0`.
 
-    #     Returns a new `AccrualSeries`.
-    #     """
-    #     raise DeprecationWarning("Removing rebase to avoid circularity issues.")
-    #     # Get the combined set of unique periods using merged_periods
-    #     unified_periods = merged_periods((a.period for a in iter(self)), iter(periods))
+        Returns a new `AccrualSeries`.
+        """
+        # Get the combined set of unique periods using merged_periods
+        unified_periods = merged_periods((a.period for a in iter(self)), iter(periods))
 
-    #     return AccrualSeries(accrual_series=_RebasedAccrualIterator(self, unified_periods))
+        return AccrualSeries(series=_RebasedAccrualIterator(self, unified_periods))
 
     @overload
     def __add__(self, other: int | float) -> "AccrualSeriesBase": ...
@@ -157,34 +155,6 @@ class AccrualSeriesBase[P](Node[P], ABC):
 
         return AccrualSeries(series=split_series(self))
 
-    # def override_accruals(self, accruals: Iterable[Accrual]) -> "AccrualSeries":
-    #     """
-    #     Create a new `AccrualSeries` overriding values in the original accrual series.
-    #     """
-    #     rebased = self.rebase((a.period for a in accruals))
-
-    #     def new_accruals():
-    #         rebased_iter = tee(rebased, 1)[0]
-    #         override_iter = tee(accruals, 1)[0]
-    #         curr_override_accrual = next(override_iter, None)
-    #         next_accrual = None
-
-    #         for a in rebased_iter:
-    #             if curr_override_accrual and (
-    #                 a.period.start >= curr_override_accrual.period.start
-    #                 and a.period.end <= curr_override_accrual.period.end
-    #             ):
-    #                 next_accrual = curr_override_accrual
-    #                 continue
-
-    #             if next_accrual and next_accrual == curr_override_accrual:
-    #                 yield next_accrual
-    #                 curr_override_accrual = next(override_iter, None)
-
-    #             yield a
-
-    #     return AccrualSeries(series=new_accruals())
-
     def accrue(self, dt1: date, dt2: date) -> float:
         """Calculate the total accrued value of a series between two dates."""
         if dt1 == dt2:
@@ -258,23 +228,6 @@ class AccrualSeries[A: Iterable[Accrual], P](AccrualSeriesBase[P]):
 
     def _accruals(self) -> Iterable[Accrual]:
         yield from self.series
-
-
-# def _rebase_accruals(accruals: Iterable[Accrual], periods: Iterable[Period]) -> _RebasedAccrualIterator:
-#     """
-#     Rebase the accrual iterable to a new set of periods.
-
-#     This method will split existing accruals at the boundaries of the new periods
-#     and the original accrual periods. The resulting iterable will contain accruals
-#     for all unique, contiguous periods from both sources.
-
-#     Any (partial) periods that do not overlap with any existing accruals will be filled with `0.0`.
-
-#     Returns a generator that yield the new `Accrual`s.
-#     """
-#     # Get the combined set of unique periods using merged_periods
-#     unified_periods = merged_periods((a.period for a in iter(accruals)), iter(periods))
-#     return _RebasedAccrualIterator(accruals, unified_periods)
 
 
 @dataclass
