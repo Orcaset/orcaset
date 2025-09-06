@@ -1,5 +1,6 @@
 import calendar
 from datetime import date
+from typing import Callable
 
 
 ####################
@@ -106,3 +107,6 @@ class YF:
     cmonthly = _CMonthly()
 
     na = _NA()
+
+
+type YfType = Callable[[date, date], float] | YF._Actual360 | YF._CMonthly | YF._Thirty360

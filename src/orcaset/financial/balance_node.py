@@ -1,10 +1,12 @@
 import datetime
+import operator
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import Callable, Iterable, Iterator, overload
 
 from orcaset import Node, cached_generator, merge_distinct
-import operator
+
+from .yearfrac import YfType
 
 
 class Balance:
@@ -73,10 +75,10 @@ class Balance:
 def _combine_balance_series(iter_first, iter_second, op: Callable[[float, float], float]) -> Iterable[Balance]:
     """
     Merge two balance iterators using the provided operator.
-    
+
     Args:
         iter_first: First balance iterator
-        iter_second: Second balance iterator  
+        iter_second: Second balance iterator
         op: Binary operator function (e.g., operator.add, operator.sub)
     """
     next_first = next(iter_first, None)
@@ -116,7 +118,10 @@ def _combine_balance_series(iter_first, iter_second, op: Callable[[float, float]
             last_second = next_second
             next_second = next(iter_second, None)
         else:  # Dates are equal, combine values using operator
-            yield Balance(date=next_first.date, value=lambda nf=next_first, ns=next_second, operation=op: operation(nf.value, ns.value))
+            yield Balance(
+                date=next_first.date,
+                value=lambda nf=next_first, ns=next_second, operation=op: operation(nf.value, ns.value),
+            )
             last_first = next_first
             last_second = next_second
             next_first = next(iter_first, None)
@@ -158,6 +163,31 @@ class BalanceSeriesBase[P](Node[P], ABC):
     def after(self, dt: datetime.date) -> "BalanceSeries":
         """Return a new `BalanceSeries` from and including `dt`. Interpolates the balance at `dt` if it does not exist."""
         return BalanceSeries(series=(bal for bal in self if bal.date > dt))
+
+    def avg(self, dt1: datetime.date, dt2: datetime.date, yf: YfType) -> float:
+        """Return the average balance between two dates. First date must not be after second date."""
+        if dt1 >= dt2:
+            raise ValueError(f"dt1 {dt1} must be before dt2 {dt2}")
+
+        total_yf = yf(dt1, dt2)
+        if total_yf == 0:
+            return 0.0
+
+        last_balance = Balance(dt1, self.at(dt1))
+        total_balance = 0.0
+
+        for bal in self.after(dt1):
+            period_yf = yf(last_balance.date, min(bal.date, dt2))
+            total_balance += last_balance.value * period_yf
+            last_balance = bal
+
+            if bal.date >= dt2:
+                break
+
+        if last_balance.date < dt2:
+            total_balance += last_balance.value * yf(last_balance.date, dt2)
+
+        return total_balance / total_yf
 
     @overload
     def __add__(self, other: float | int) -> "BalanceSeries": ...

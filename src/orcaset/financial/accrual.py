@@ -2,7 +2,7 @@ from datetime import date
 from typing import Callable
 
 from .period import Period
-from .yearfrac import YF
+from .yearfrac import YF, YfType
 
 
 class Accrual:
@@ -22,7 +22,7 @@ class Accrual:
         self,
         period: Period,
         value: float | Callable[[], float],
-        yf: Callable[[date, date], float] | YF._Actual360 | YF._CMonthly | YF._Thirty360,
+        yf: YfType,
     ):
         self.period = period
         self.yf = yf

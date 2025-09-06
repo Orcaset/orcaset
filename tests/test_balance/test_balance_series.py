@@ -4,6 +4,7 @@ from unittest.mock import Mock
 import pytest
 
 from orcaset.financial.balance_node import Balance, BalanceSeries
+from orcaset.financial.yearfrac import YF
 
 
 def test_balance_series_creation():
@@ -526,3 +527,220 @@ def test_balance_series_truediv_invalid_type():
     with pytest.raises(TypeError, match="Cannot divide"):
         series / "invalid"  # type: ignore
     mock_value.assert_not_called()
+
+
+def test_balance_series_avg_period_before_series_starts():
+    """Test avg when the period is entirely before the series starts."""
+    balances = [
+        Balance(datetime.date(2023, 1, 10), 100.0),
+        Balance(datetime.date(2023, 1, 15), 200.0),
+    ]
+    series = BalanceSeries(series=balances)
+    
+    result = series.avg(datetime.date(2023, 1, 1), datetime.date(2023, 1, 5), YF.actual360)
+    assert result == 0.0
+
+
+def test_balance_series_avg_period_after_series_ends():
+    """Test avg when the period is entirely after the series ends."""
+    balances = [
+        Balance(datetime.date(2023, 1, 10), 100.0),
+        Balance(datetime.date(2023, 1, 15), 200.0),
+    ]
+    series = BalanceSeries(series=balances)
+    
+    result = series.avg(datetime.date(2023, 1, 20), datetime.date(2023, 1, 25), YF.actual360)
+    assert result == 200.0
+
+
+def test_balance_series_avg_dates_on_balance_dates():
+    """Test avg when start and end dates are exactly on balance dates."""
+    balances = [
+        Balance(datetime.date(2023, 1, 1), 100.0),
+        Balance(datetime.date(2023, 1, 10), 200.0),
+        Balance(datetime.date(2023, 1, 20), 300.0),
+    ]
+    series = BalanceSeries(series=balances)
+    
+    # Period from balance date to balance date
+    result = series.avg(datetime.date(2023, 1, 1), datetime.date(2023, 1, 10), YF.actual360)
+    expected = 100.0  # Constant 100 for the entire period
+    assert result == pytest.approx(expected)
+
+    # Period spanning multiple balance dates
+    result = series.avg(datetime.date(2023, 1, 1), datetime.date(2023, 1, 20), YF.actual360)
+    # 100 for 9 days, 200 for 10 days out of 19 days total
+    days_100 = 9
+    days_200 = 10
+    total_days = 19
+    expected = (100.0 * days_100 + 200.0 * days_200) / total_days
+    assert result == expected
+
+
+def test_balance_series_avg_dates_between_balance_dates():
+    """Test avg when dates fall between balance dates."""
+    balances = [
+        Balance(datetime.date(2023, 1, 1), 100.0),
+        Balance(datetime.date(2023, 1, 10), 200.0),
+        Balance(datetime.date(2023, 1, 20), 300.0),
+    ]
+    series = BalanceSeries(series=balances)
+    
+    # Period between balance dates - should use interpolated values
+    result = series.avg(datetime.date(2023, 1, 5), datetime.date(2023, 1, 15), YF.actual360)
+    # From day 5-10: balance is 100, from day 10-15: balance is 200
+    days_100 = 5  # Jan 5-10
+    days_200 = 5  # Jan 10-15
+    total_days = 10
+    expected = (100.0 * days_100 + 200.0 * days_200) / total_days
+    assert result == pytest.approx(expected)
+
+
+def test_balance_series_avg_partial_overlap_start():
+    """Test avg when period starts before series but ends within series."""
+    balances = [
+        Balance(datetime.date(2023, 1, 10), 100.0),
+        Balance(datetime.date(2023, 1, 20), 200.0),
+    ]
+    series = BalanceSeries(series=balances)
+    
+    # Period starts before series, ends within series
+    result = series.avg(datetime.date(2023, 1, 5), datetime.date(2023, 1, 15), YF.actual360)
+    # From day 5-10: balance is 0, from day 10-15: balance is 100
+    days_0 = 5    # Jan 5-10
+    days_100 = 5  # Jan 10-15
+    total_days = 10
+    expected = (0.0 * days_0 + 100.0 * days_100) / total_days
+    assert result == pytest.approx(expected)
+
+
+def test_balance_series_avg_partial_overlap_end():
+    """Test avg when period starts within series but ends after series."""
+    balances = [
+        Balance(datetime.date(2023, 1, 10), 100.0),
+        Balance(datetime.date(2023, 1, 20), 200.0),
+    ]
+    series = BalanceSeries(series=balances)
+    
+    # Period starts within series, ends after series
+    result = series.avg(datetime.date(2023, 1, 15), datetime.date(2023, 1, 25), YF.actual360)
+    # From day 15-20: balance is 100, from day 20-25: balance is 200
+    days_100 = 5  # Jan 15-20
+    days_200 = 5  # Jan 20-25
+    total_days = 10
+    expected = (100.0 * days_100 + 200.0 * days_200) / total_days
+    assert result == pytest.approx(expected)
+
+
+def test_balance_series_avg_single_balance():
+    """Test avg with a series containing only one balance."""
+    balances = [Balance(datetime.date(2023, 1, 10), 150.0)]
+    series = BalanceSeries(series=balances)
+    
+    # Period entirely before the balance
+    result = series.avg(datetime.date(2023, 1, 1), datetime.date(2023, 1, 5), YF.actual360)
+    assert result == 0.0
+    
+    # Period starting before and ending after the balance
+    result = series.avg(datetime.date(2023, 1, 5), datetime.date(2023, 1, 15), YF.actual360)
+    # From day 5-10: balance is 0, from day 10-15: balance is 150
+    days_0 = 5    # Jan 5-10
+    days_150 = 5  # Jan 10-15
+    total_days = 10
+    expected = (0.0 * days_0 + 150.0 * days_150) / total_days
+    assert result == expected
+    
+    # Period entirely after the balance
+    result = series.avg(datetime.date(2023, 1, 15), datetime.date(2023, 1, 20), YF.actual360)
+    assert result == pytest.approx(150.0)
+
+
+def test_balance_series_avg_empty_series():
+    """Test avg with an empty series."""
+    series = BalanceSeries(series=[])
+    
+    result = series.avg(datetime.date(2023, 1, 1), datetime.date(2023, 1, 10), YF.actual360)
+    assert result == 0.0
+
+
+def test_balance_series_avg_zero_period():
+    """Test avg with zero year fraction (same dates would raise ValueError)."""
+    balances = [Balance(datetime.date(2023, 1, 10), 100.0)]
+    series = BalanceSeries(series=balances)
+    
+    # Test with a custom year fraction function that returns 0
+    def zero_yf(dt1, dt2):
+        return 0.0
+    
+    result = series.avg(datetime.date(2023, 1, 5), datetime.date(2023, 1, 15), zero_yf)
+    assert result == 0.0
+
+
+def test_balance_series_avg_different_yearfrac_methods():
+    """Test avg with different year fraction calculation methods."""
+    balances = [
+        Balance(datetime.date(2023, 1, 1), 100.0),
+        Balance(datetime.date(2023, 2, 1), 200.0),
+    ]
+    series = BalanceSeries(series=balances)
+    
+    # Test with actual360
+    result_actual360 = series.avg(datetime.date(2023, 1, 1), datetime.date(2023, 2, 28), YF.actual360)
+
+    # Test with thirty360
+    result_thirty360 = series.avg(datetime.date(2023, 1, 1), datetime.date(2023, 2, 28), YF.thirty360)
+    
+    assert result_actual360 == pytest.approx(146.551724138)
+    assert result_thirty360 == pytest.approx(147.368421053)
+
+
+def test_balance_series_avg_invalid_date_range():
+    """Test avg raises ValueError when dt1 >= dt2."""
+    balances = [Balance(datetime.date(2023, 1, 10), 100.0)]
+    series = BalanceSeries(series=balances)
+    
+    # dt1 > dt2
+    with pytest.raises(ValueError, match="dt1 .* must be before dt2"):
+        series.avg(datetime.date(2023, 1, 15), datetime.date(2023, 1, 10), YF.actual360)
+    
+    # dt1 == dt2
+    with pytest.raises(ValueError, match="dt1 .* must be before dt2"):
+        series.avg(datetime.date(2023, 1, 10), datetime.date(2023, 1, 10), YF.actual360)
+
+
+def test_balance_series_avg_complex_overlap():
+    """Test avg with complex overlapping scenarios."""
+    balances = [
+        Balance(datetime.date(2023, 1, 5), 50.0),
+        Balance(datetime.date(2023, 1, 10), 100.0),
+        Balance(datetime.date(2023, 1, 15), 150.0),
+        Balance(datetime.date(2023, 1, 20), 200.0),
+    ]
+    series = BalanceSeries(series=balances)
+    
+    # Test period that spans multiple balance changes
+    result = series.avg(datetime.date(2023, 1, 8), datetime.date(2023, 1, 18), YF.actual360)
+    # From day 8-10: balance is 50 (2 days)
+    # From day 10-15: balance is 100 (5 days)
+    # From day 15-18: balance is 150 (3 days)
+    total_days = 10
+    expected = (50.0 * 2 + 100.0 * 5 + 150.0 * 3) / total_days
+    assert result == pytest.approx(expected)
+
+
+def test_balance_series_avg_with_lazy_evaluation():
+    """Test that avg works correctly with lazy evaluation (Mock functions)."""
+    mock_value1 = Mock(return_value=100.0)
+    mock_value2 = Mock(return_value=200.0)
+    balances = [
+        Balance(datetime.date(2023, 1, 1), mock_value1),
+        Balance(datetime.date(2023, 1, 10), mock_value2),
+    ]
+    series = BalanceSeries(series=balances)
+    
+    result = series.avg(datetime.date(2023, 1, 1), datetime.date(2023, 1, 10), YF.actual360)
+    assert result == 100.0
+    
+    # The mock functions should be called when avg accesses the balance values
+    mock_value1.assert_called_once()
+    mock_value2.assert_not_called()  # Not needed for this specific calculation
