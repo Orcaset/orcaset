@@ -174,3 +174,20 @@ class NodeDescriptor:
             return descriptor
 
         return _get_structure_recursive(node)
+
+
+def get_nodes(node: Node) -> list[Node]:
+    """
+    Get a node and all descendant nodes of a given node, recursively.
+
+    Args:
+        node (Node): The root node to start the search from.
+
+    Returns:
+        list[Node]: A list of all descendant nodes in depth-first order.
+    """
+    nodes = []
+    for child in node.child_nodes:
+        nodes.extend(get_nodes(child))
+    nodes.append(node)
+    return nodes

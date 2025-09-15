@@ -744,3 +744,37 @@ def test_balance_series_avg_with_lazy_evaluation():
     # The mock functions should be called when avg accesses the balance values
     mock_value1.assert_called_once()
     mock_value2.assert_not_called()  # Not needed for this specific calculation
+
+def test_balance_series_avg_max_date_query_equal():
+    """Test that avg doesn't pull balances from after the first matching balance date."""
+    value_2 = Mock(return_value=200.0)
+    value_3 = Mock(return_value=300.0)
+
+    balances = (bal for bal in (
+        Balance(datetime.date(2023, 1, 1), 100.0),
+        Balance(datetime.date(2023, 1, 10), value_2),
+        Balance(datetime.date(2023, 1, 20), value_3),
+    ))
+    series = BalanceSeries(series=balances)
+
+    _ = series.avg(datetime.date(2023, 1, 1), datetime.date(2023, 1, 10), YF.actual360)
+    value_2.assert_not_called()
+    value_3.assert_not_called()
+    assert next(balances) == Balance(datetime.date(2023, 1, 20), 300.0)
+
+def test_balance_series_avg_max_date_query_mid():
+    """Test that avg doesn't pull balances from after the first balance after dt."""
+    value_2 = Mock(return_value=200.0)
+    value_3 = Mock(return_value=300.0)
+
+    balances = (bal for bal in (
+        Balance(datetime.date(2023, 1, 1), 100.0),
+        Balance(datetime.date(2023, 1, 10), value_2),
+        Balance(datetime.date(2023, 1, 20), value_3),
+    ))
+    series = BalanceSeries(series=balances)
+
+    _ = series.avg(datetime.date(2023, 1, 1), datetime.date(2023, 1, 5), YF.actual360)
+    value_2.assert_not_called()
+    value_3.assert_not_called()
+    assert next(balances) == Balance(datetime.date(2023, 1, 20), 300.0)
