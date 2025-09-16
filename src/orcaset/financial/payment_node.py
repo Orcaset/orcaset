@@ -4,7 +4,8 @@ from dataclasses import dataclass
 from itertools import takewhile
 from typing import Callable, Iterable, Iterator
 
-from orcaset import Node, cached_generator
+from ..node import Node
+from ..decorators import cached_generator
 
 
 class Payment:

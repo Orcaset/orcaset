@@ -4,7 +4,9 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import Callable, Iterable, Iterator, overload
 
-from orcaset import Node, cached_generator, merge_distinct
+from ..node import Node
+from ..decorators import cached_generator
+from ..utils import merge_distinct
 
 from .yearfrac import YfType
 
