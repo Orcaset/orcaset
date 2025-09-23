@@ -44,6 +44,8 @@ class TestAccrualSeriesBaseAddition:
         assert result[1].period == Period(date(2023, 1, 15), date(2023, 2, 1))
         assert result[0].value == 150.0
         assert result[1].value == 275.0
+        assert result[0].yf == YF.actual360
+        assert result[1].yf == YF.actual360
 
     def test_add_accrual_series_different_dates(self):
         """Test adding two AccrualSeries with different dates."""

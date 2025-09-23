@@ -57,7 +57,7 @@ wheels = [
 
 [[package]]
 name = "orcaset"
-version = "0.2.3a1"
+version = "0.2.4a1"
 source = { editable = "." }
 dependencies = [
     { name = "mypy" },

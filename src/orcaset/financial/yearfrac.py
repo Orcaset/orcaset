@@ -23,12 +23,18 @@ class YF:
         def __repr__(self):
             return "YF.na"
 
+        def __deepcopy__(self, memo):
+            return self
+
     class _Actual360:
         def __call__(self, dt1: date, dt2: date) -> float:
             return (dt2 - dt1).days / 360
 
         def __repr__(self):
             return "YF.actual360"
+
+        def __deepcopy__(self, memo):
+            return self
 
     class _Thirty360:
         def __call__(self, dt1: date, dt2: date) -> float:
@@ -59,6 +65,9 @@ class YF:
 
         def __repr__(self):
             return "YF.thirty360"
+
+        def __deepcopy__(self, memo):
+            return self
 
     class _CMonthly:
         def __call__(self, dt1: date, dt2: date) -> float:
@@ -99,6 +108,9 @@ class YF:
 
         def __repr__(self):
             return "YF.cmonthly"
+        
+        def __deepcopy__(self, memo):
+            return self
 
     actual360 = _Actual360()
 
