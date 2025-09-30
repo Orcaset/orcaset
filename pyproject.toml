@@ -1,6 +1,6 @@
 [project]
 name = "orcaset"
-version = "0.2.4a1"
+version = "0.2.4a2"
 description = "Open financial modeling toolkit"
 readme = "README.md"
 license = "SSPL-1.0"
