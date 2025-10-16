@@ -75,6 +75,19 @@ def test_balance_series_at_before_range():
     mock_value2.assert_not_called()
 
 
+def test_balance_series_at_before_infinite_range():
+    mock_value = Mock(return_value=200.0)
+    def balances_gen():
+        date = datetime.date(2023, 1, 2)
+        while True:
+            yield Balance(date, mock_value)
+            date += datetime.timedelta(days=1)
+
+    series = BalanceSeries(series=balances_gen())
+    assert series.at(datetime.date(2023, 1, 1)) == 0.0
+    mock_value.assert_not_called()
+
+
 def test_balance_series_at_after_range():
     mock_value1 = Mock(return_value=100.0)
     mock_value2 = Mock(return_value=200.0)

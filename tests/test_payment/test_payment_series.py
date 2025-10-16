@@ -62,6 +62,39 @@ def test_payment_series_on_missing_date():
     mock_value2.assert_not_called()
 
 
+def test_payment_series_on_before_series_start():
+    mock_value = Mock(return_value=100.0)
+    payments = [
+        Payment(datetime.date(2023, 1, 2), mock_value),
+    ]
+    series = PaymentSeries(payment_series=payments)
+    assert series.on(datetime.date(2023, 1, 1)) == 0
+    mock_value.assert_not_called()
+
+
+def test_payment_series_on_before_infinite_series_start():
+    mock_value = Mock(return_value=100.0)
+    def payment_generator():
+        dt = datetime.date(2023, 1, 2)
+        while True:
+            yield Payment(dt, mock_value)
+            dt += datetime.timedelta(days=1)
+
+    series = PaymentSeries(payment_series=payment_generator())
+    assert series.on(datetime.date(2023, 1, 1)) == 0
+    mock_value.assert_not_called()
+
+
+def test_payment_series_on_after_series_end():
+    mock_value = Mock(return_value=100.0)
+    payments = [
+        Payment(datetime.date(2023, 1, 2), mock_value),
+    ]
+    series = PaymentSeries(payment_series=payments)
+    assert series.on(datetime.date(2023, 1, 3)) == 0
+    mock_value.assert_not_called()
+
+
 def test_payment_series_over_inclusive_period():
     mock_value1 = Mock(return_value=100.0)
     mock_value2 = Mock(return_value=200.0)

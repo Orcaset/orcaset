@@ -117,11 +117,12 @@ class PaymentSeriesBase[P](Node[P], ABC):
         """
         Get the payment at a given date. Returns zero if no payment on the given date.
         """
-        pmt = next((pmt for pmt in self if pmt.date == dt), None)
-        if pmt is None:
-            return 0
-        else:
-            return pmt.value
+        for pmt in self:
+            if pmt.date == dt:
+                return pmt.value
+            if pmt.date > dt:
+                return 0
+        return 0
 
     def over(self, from_date: datetime.date, to_date: datetime.date) -> float:
         """
