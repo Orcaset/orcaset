@@ -1,5 +1,5 @@
 version = 1
-revision = 2
+revision = 3
 requires-python = ">=3.12"
 
 [[package]]
@@ -57,7 +57,7 @@ wheels = [
 
 [[package]]
 name = "orcaset"
-version = "0.2.4a1"
+version = "0.2.4a3"
 source = { editable = "." }
 dependencies = [
     { name = "mypy" },
