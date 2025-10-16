@@ -76,7 +76,9 @@ def _combine_payment_series(
 ) -> Iterable[Payment]:
     """
     Combine two payment series using the provided operator.
-    Payments on the same date are combined using the operator.
+
+    Payments on the same date are combined using the operator. Payments that exist in only one series are combined with zero using the operator.
+    Order of payment series is preserved in applying the operator.
     """
     first = iter(first)
     second = iter(second)
@@ -85,16 +87,16 @@ def _combine_payment_series(
     second_pmt = next(second, None)
     while first_pmt is not None or second_pmt is not None:
         if first_pmt is None:
-            yield second_pmt  # type: ignore
+            yield Payment(date=second_pmt.date, value=lambda sp=second_pmt: operator(0, sp.value))  # type: ignore
             second_pmt = next(second, None)
         elif second_pmt is None:
-            yield first_pmt
+            yield Payment(date=first_pmt.date, value=lambda fp=first_pmt: operator(fp.value, 0))  # type: ignore
             first_pmt = next(first, None)
         elif first_pmt.date < second_pmt.date:
-            yield first_pmt
+            yield Payment(date=first_pmt.date, value=lambda fp=first_pmt: operator(fp.value, 0))
             first_pmt = next(first, None)
         elif first_pmt.date > second_pmt.date:
-            yield second_pmt
+            yield Payment(date=second_pmt.date, value=lambda sp=second_pmt: operator(0, sp.value))
             second_pmt = next(second, None)
         else:
             yield Payment(date=first_pmt.date, value=lambda fp=first_pmt, sp=second_pmt: operator(fp.value, sp.value))

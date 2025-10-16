@@ -212,7 +212,7 @@ def test_payment_series_sub_different_dates():
 
     expected = [
         Payment(datetime.date(2023, 1, 1), 100.0),
-        Payment(datetime.date(2023, 1, 2), 200.0),
+        Payment(datetime.date(2023, 1, 2), -200.0),
         Payment(datetime.date(2023, 1, 3), 300.0),
     ]
     mock_value1.assert_not_called()
