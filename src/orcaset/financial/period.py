@@ -1,7 +1,7 @@
 import heapq
 from datetime import date
 from itertools import chain
-from typing import Any, Generator, Iterable, NamedTuple, Self
+from typing import Any, Generator, Iterable, NamedTuple, Self, overload
 
 from dateutil.relativedelta import relativedelta
 
@@ -13,21 +13,31 @@ class Period(NamedTuple):
     def __repr__(self):
         return f"Period({self.start.isoformat()}, {self.end.isoformat()})"
 
+    @overload
+    @classmethod
+    def series(cls, start: date, freq: relativedelta, end: date | None = None) -> Generator[Self, Any, None]: ...
+    @overload
+    @classmethod
+    def series(cls, start: date, freq: relativedelta, end: relativedelta | None = None) -> Generator[Self, Any, None]: ...
     @classmethod
     def series(
-        cls, start: date, freq: relativedelta, end_offset: relativedelta | None = None
+        cls, start: date, freq: relativedelta, end: date | relativedelta | None = None
     ) -> Generator[Self, Any, None]:
         """
-        Generator of consecutive periods starting from `start`. 
-        
-        Ends at `star + end_offset` or if `end_offset` is not `None`, otherwise infinite.
-        
+        Create a generator of consecutive periods starting from `start`.
+
+        Each period has a duration of `freq`.
+        The generator continues until the end date is reached. If no end date is provided, the generator is infinite.
+
         Args:
             start: Start date of the first period.
             freq: Period duration.
-            end_offset: Optional offset to determine the end date of the last period.
+            end: Optional end date or offset to determine the end date of the last period.
         """
-        end = (start + end_offset) if end_offset is not None else date.max
+        if not end:
+            end = date.max
+        elif isinstance(end, relativedelta):
+            end = start + end
         per_start, per_end = start, min(start + freq, end)
         num = 2
 
