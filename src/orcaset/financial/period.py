@@ -18,7 +18,9 @@ class Period(NamedTuple):
     def series(cls, start: date, freq: relativedelta, end: date | None = None) -> Generator[Self, Any, None]: ...
     @overload
     @classmethod
-    def series(cls, start: date, freq: relativedelta, end: relativedelta | None = None) -> Generator[Self, Any, None]: ...
+    def series(
+        cls, start: date, freq: relativedelta, end: relativedelta | None = None
+    ) -> Generator[Self, Any, None]: ...
     @classmethod
     def series(
         cls, start: date, freq: relativedelta, end: date | relativedelta | None = None
@@ -47,9 +49,7 @@ class Period(NamedTuple):
             num += 1
 
 
-def merged_periods(
-    first: Iterable[Period], second: Iterable[Period]
-) -> Iterable[Period]:
+def merged_periods(first: Iterable[Period], second: Iterable[Period]) -> Iterable[Period]:
     """
     Lazily merge two overlapping iterables of periods into a contiguous iterable of distinct periods.
 

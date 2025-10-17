@@ -4,7 +4,7 @@ from collections.abc import Generator, Iterable
 from dataclasses import dataclass, field
 from datetime import date
 from itertools import dropwhile
-from typing import Callable, Generic, TypeVar, get_origin, get_type_hints
+from typing import Callable, Generic, TypeVar, get_origin, get_type_hints, overload
 
 from dateutil.relativedelta import relativedelta
 
@@ -31,19 +31,24 @@ def merge_distinct(*iterables: Iterable):
             last_yielded = next_value
 
 
+@overload
+def date_series(start: date, freq: relativedelta, end: date | None = None) -> Generator[date, None, None]: ...
+@overload
+def date_series(start: date, freq: relativedelta, end: relativedelta | None = None) -> Generator[date, None, None]: ...
 def date_series(
-    start: date, freq: relativedelta, end_offset: relativedelta | None = None
+    start: date, freq: relativedelta, end: date | relativedelta | None = None
 ) -> Generator[date, None, None]:
     """
     Returns a generator of dates starting from `start` and incrementing by `freq`.
-    If `end_offset` is provided, the series will end at `start + end_offset`.
+    If `end` is provided, the series will end at the specified date or `start + end` if `end` is a `relativedelta`.
+    Returns an infinite generator of dates if `end` is not provided.
 
     Increments dates by adding `i * freq` to `start` for `i` in `0...n`.
     """
-    if end_offset is not None:
-        end = start + end_offset
-    else:
+    if end is None:
         end = date.max
+    elif isinstance(end, relativedelta):
+        end = start + end
 
     i = 0
     current_date = start
@@ -110,6 +115,7 @@ class take_first_range(Generic[_T]):
 
 @dataclass
 class NodeDescriptor:
+    node: type[Node]
     cls_name: str
     attr_name: str | None = None
     children: list["NodeDescriptor"] = field(default_factory=list)
@@ -135,8 +141,11 @@ class NodeDescriptor:
             "children": [c.dump() for c in self.children],
             "code": self.code,
         }
-    
-    def pretty(self, indent: int = 0) -> str:
+
+    def __repr__(self) -> str:
+        return self.dump().__repr__()
+
+    def pretty(self, indent: int = 2) -> str:
         """Pretty print the structure of the node."""
         indent_str = " " * indent
         result = ""
@@ -155,7 +164,9 @@ class NodeDescriptor:
             """
             Get the structure of a Node and its children.
             """
-            descriptor: "NodeDescriptor" = cls(cls_name=node.__name__, attr_name=attr_name, code=inspect.getsource(node))
+            descriptor: "NodeDescriptor" = cls(
+                node, cls_name=node.__name__, attr_name=attr_name, code=inspect.getsource(node)
+            )
             hints = get_type_hints(node)
 
             for name, hint in hints.items():
@@ -175,19 +186,35 @@ class NodeDescriptor:
 
         return _get_structure_recursive(node)
 
+    def filter(self, predicate: Callable[["NodeDescriptor"], bool]) -> list["NodeDescriptor"]:
+        """
+        Filter the node and its children based on a predicate.
+        Returns a list of NodeDescriptors that match the predicate.
+        """
+        result = []
+        if predicate(self):
+            result.append(self)
+        for child in self.children:
+            result.extend(child.filter(predicate))
+        return result
 
-def get_nodes(node: Node) -> list[Node]:
+
+def get_nodes(node: Node, ignore: Callable[[Node], bool] | None = None) -> list[Node]:
     """
-    Get a node and all descendant nodes of a given node, recursively.
+    Depth-first search for a node and all descendant nodes of a given node, recursively.
+
+    Skips nodes for which the `ignore` function returns True. Continues to search children of ignored nodes.
 
     Args:
         node (Node): The root node to start the search from.
+        ignore (Callable[[Node], bool] | None): A function that determines whether to skip a node.
 
     Returns:
         list[Node]: A list of all descendant nodes in depth-first order.
     """
     nodes = []
     for child in node.child_nodes:
-        nodes.extend(get_nodes(child))
-    nodes.append(node)
+        nodes.extend(get_nodes(child, ignore=ignore))
+    if ignore is None or not ignore(node):
+        nodes.append(node)
     return nodes

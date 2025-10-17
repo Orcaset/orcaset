@@ -114,3 +114,32 @@ class TestGetNodes:
 
         result = get_nodes(root)
         assert result == [child, root]
+
+    def test_ignore_root_node(self):
+        """Test get_nodes respects ignore when root is ignored."""
+        class ChildNode(Node):
+            pass
+
+        root = Node()
+        child = ChildNode()
+        root.child = child
+
+        result = get_nodes(root, ignore=lambda node: node is root)
+        assert result == [child]
+
+    def test_ignore_child_includes_descendants(self):
+        """Test get_nodes skips ignored nodes but recurses into their children."""
+        class ChildNode(Node):
+            pass
+
+        class GrandChildNode(Node):
+            pass
+
+        root = Node()
+        child = ChildNode()
+        grandchild = GrandChildNode()
+        root.child = child
+        child.grandchild = grandchild
+
+        result = get_nodes(root, ignore=lambda node: isinstance(node, ChildNode))
+        assert result == [grandchild, root]

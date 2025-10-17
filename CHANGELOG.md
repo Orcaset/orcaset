@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.5a0] - 2025-10-17
+
+### Added
+- Optional `ignore` predicate for `get_nodes` to skip nodes while still traversing their descendants.
+- `NodeDescriptor.filter` to select descriptors matching a predicate.
+
+### Changed
+- `Period.series` accepts a concrete `datetime.date` end point in addition to relative offsets.
+- `utils.date_series` accepts either a `datetime.date` or `relativedelta` as the end argument and exposes typing overloads.
+
 ## [0.2.4a4] - 2025-10-16
 
 ### Fixed
