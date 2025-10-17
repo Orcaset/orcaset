@@ -90,7 +90,7 @@ def _combine_payment_series(
             yield Payment(date=second_pmt.date, value=lambda sp=second_pmt: operator(0, sp.value))  # type: ignore
             second_pmt = next(second, None)
         elif second_pmt is None:
-            yield Payment(date=first_pmt.date, value=lambda fp=first_pmt: operator(fp.value, 0))  # type: ignore
+            yield Payment(date=first_pmt.date, value=lambda fp=first_pmt: operator(fp.value, 0))
             first_pmt = next(first, None)
         elif first_pmt.date < second_pmt.date:
             yield Payment(date=first_pmt.date, value=lambda fp=first_pmt: operator(fp.value, 0))
